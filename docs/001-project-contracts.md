@@ -10,13 +10,15 @@ Use one URL helper to keep URL identity consistent across packages.
 Inject command output streams to support tests without process changes.
 
 Pin gofeed v1.5.0 and modernc.org/sqlite v1.39.1.
-Add Bubble Tea v2.0.10 when the terminal reader is implemented.
+Use charm.land/bubbletea/v2 v2.0.10 for the implemented terminal reader.
+Use github.com/charmbracelet/x/ansi v0.11.7 for text width, clipping, and wrapping.
+Use golang.org/x/net v0.58.0 directly for HTML conversion and through gofeed for feed parsing.
 These versions provide the required major versions and APIs.
 gofeed v1.5.0 includes parser fixes and uses current golang.org/x/net.
 Use golang.org/x/sys v0.47.0 as a transitive dependency.
 This version supports the library dependencies with Go 1.27.2.
 The resolved graph selects golang.org/x/net v0.58.0 and golang.org/x/text v0.41.0.
-The feed parser and SQLite driver build offline with Go 1.27.2.
+The feed parser, SQLite driver, and terminal reader build offline with Go 1.27.2.
 Keep only imported libraries and their dependencies in the module files.
 Keep module checksums in go.sum for offline checks after dependency installation.
 
