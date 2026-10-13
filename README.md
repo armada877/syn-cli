@@ -104,3 +104,18 @@ Cancel removal once. Confirm removal once. Quit with q.
 
 Each package has a SPEC.md file with its required behavior.
 Decision records describe the app, CLI, and reader designs next to their code.
+
+## Omarchy colors
+
+Run `syn setup omarchy` to install ~/.config/omarchy/themed/syn.toml.tpl.
+Omarchy renders the template on the next theme change.
+Setup preserves a different existing template and refuses a symlink target.
+It does not open the database or run a theme change.
+
+The reader uses terminal ANSI colors by default.
+It reads ~/.local/state/omarchy/current/theme/syn.toml when that file exists.
+It follows live changes without restarting or fetching feeds.
+Missing or invalid keys retain their default styles.
+Unread markers and selected rows use the accent.
+Read articles use faint text or the rendered muted color.
+Set a nonempty NO_COLOR to disable generated styles.

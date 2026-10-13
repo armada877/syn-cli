@@ -86,8 +86,8 @@ func fixture(t *testing.T) (*Model, *fakeRepository, *fakeFetcher) {
 	t.Helper()
 	r := &fakeRepository{feeds: []domain.Feed{{ID: 1, Title: "One"}, {ID: 2, Title: "Two"}}, articles: []domain.Article{{ID: 20, FeedID: 2, Title: "Newest", Content: strings.Repeat("word ", 300)}, {ID: 10, FeedID: 1, Title: "Older", Content: "<p>text</p>"}}}
 	f := &fakeFetcher{}
-	m := New(context.Background(), app.New(r, f))
-	finish(m, m.Init())
+	m := NewWithTheme(context.Background(), app.New(r, f), "", false)
+	finish(m, m.work(nil))
 	return m, r, f
 }
 func finish(m *Model, cmd tea.Cmd) {
@@ -262,11 +262,11 @@ func TestFeedPicker(t *testing.T) {
 func TestEmptyLoadingErrorsAndRefresh(t *testing.T) {
 	r := &fakeRepository{}
 	f := &fakeFetcher{}
-	m := New(context.Background(), app.New(r, f))
+	m := NewWithTheme(context.Background(), app.New(r, f), "", false)
 	if !strings.Contains(m.View().Content, "Loading") {
 		t.Fatal("loading")
 	}
-	finish(m, m.Init())
+	finish(m, m.work(nil))
 	for _, width := range []int{79, 80} {
 		resize(m, width)
 		if !strings.Contains(m.View().Content, "No articles") {
@@ -309,7 +309,7 @@ func TestTerminalText(t *testing.T) {
 	m.articles[0].Title = "safe\x1b[31mred\x1b]0;attack\a\u202e"
 	m.feeds[0].Title = "bad\nfeed"
 	view := m.View().Content
-	if strings.ContainsAny(view, "\x1b\a\u202e") || strings.Contains(view, "attack") {
+	if strings.ContainsAny(ansi.Strip(view), "\x1b\a\u202e") || strings.Contains(view, "attack") {
 		t.Fatalf("unsafe %q", view)
 	}
 	for _, width := range []int{1, 10, 79, 80} {

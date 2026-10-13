@@ -40,12 +40,21 @@ type Model struct {
 	reader        *domain.Article
 	scroll        int
 	loading       bool
+	theme         Theme
+	styles        Styles
+	themeFile     string
+	noColor       bool
 	status        string
 	err           error
 }
 
 func New(ctx context.Context, a *app.App) *Model {
-	return &Model{app: a, ctx: ctx, width: 80, height: 24, loading: true}
+	home, _ := os.UserHomeDir()
+	return NewWithTheme(ctx, a, themePath(home), os.Getenv("NO_COLOR") != "")
+}
+func NewWithTheme(ctx context.Context, a *app.App, path string, noColor bool) *Model {
+	theme := loadTheme(path, noColor)
+	return &Model{app: a, ctx: ctx, width: 80, height: 24, loading: true, theme: theme, styles: makeStyles(theme), themeFile: path, noColor: noColor}
 }
 func Run(ctx context.Context, a *app.App, out io.Writer) error {
 	ctx, cancel := context.WithCancel(ctx)
@@ -53,7 +62,9 @@ func Run(ctx context.Context, a *app.App, out io.Writer) error {
 	_, err := tea.NewProgram(New(ctx, a), tea.WithContext(ctx), tea.WithInput(os.Stdin), tea.WithOutput(out)).Run()
 	return err
 }
-func (m *Model) Init() tea.Cmd { return m.work(nil) }
+func (m *Model) Init() tea.Cmd {
+	return tea.Batch(m.work(nil), watchTheme(m.ctx, m.themeFile, m.noColor))
+}
 func (m *Model) work(operation func() (string, error)) tea.Cmd {
 	m.loading = true
 	return func() tea.Msg {
@@ -136,6 +147,10 @@ func (m *Model) refresh(id int64) tea.Cmd {
 }
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case themeMsg:
+		m.theme = msg.theme
+		m.styles = makeStyles(msg.theme)
+		return m, watchTheme(m.ctx, m.themeFile, m.noColor)
 	case tea.WindowSizeMsg:
 		m.width = max(1, msg.Width)
 		m.height = max(1, msg.Height)
@@ -341,11 +356,11 @@ func (m *Model) readerLines() []string {
 	if m.reader == nil {
 		return nil
 	}
-	text := app.ArticleText(m.reader.Title, m.reader.URL, m.reader.Content)
+	text := m.styles.Emphasis.Render(app.SafeText(m.reader.Title)) + "\n" + app.SafeText(m.reader.URL) + "\n\n" + app.PlainText(m.reader.Content)
 	return strings.Split(ansi.Hardwrap(ansi.Wrap(text, max(1, m.width-2), ""), max(1, m.width-2), false), "\n")
 }
 func (m *Model) maxScroll() int      { return max(0, len(m.readerLines())-max(1, m.height-4)) }
-func fit(s string, width int) string { return ansi.Truncate(app.SafeText(s), max(1, width), "") }
+func fit(s string, width int) string { return ansi.Truncate(s, max(1, width), "") }
 func (m *Model) feedTitle(id int64) string {
 	if id == 0 {
 		return "All feeds"
@@ -371,7 +386,11 @@ func (m *Model) feedRows() []string {
 		if i > 0 {
 			id = m.feeds[i-1].ID
 		}
-		rows = append(rows, prefix+m.feedTitle(id))
+		row := prefix + m.feedTitle(id)
+		if i == m.feedIndex {
+			row = m.styles.Selected.Render(row)
+		}
+		rows = append(rows, row)
 	}
 	return window(rows, m.feedIndex, max(1, m.height-5))
 }
@@ -391,7 +410,16 @@ func (m *Model) articleRows() []string {
 		if a.Read {
 			state = "  "
 		}
-		rows = append(rows, prefix+state+a.PublishedAt.Format("2006-01-02")+" "+m.feedTitle(a.FeedID)+" | "+strings.Join(strings.Fields(app.SafeText(a.Title)), " "))
+		body := a.PublishedAt.Format("2006-01-02") + " " + m.feedTitle(a.FeedID) + " | " + strings.Join(strings.Fields(app.SafeText(a.Title)), " ")
+		row := prefix + state + body
+		if i == m.articleIndex {
+			row = m.styles.Selected.Render(row)
+		} else if a.Read {
+			row = m.styles.Read.Render(row)
+		} else {
+			row = prefix + m.styles.Unread.Render(state) + body
+		}
+		rows = append(rows, row)
 	}
 	if len(rows) == 0 {
 		return []string{"No articles"}
@@ -399,7 +427,7 @@ func (m *Model) articleRows() []string {
 	return window(rows, m.articleIndex, max(1, m.height-5))
 }
 func (m *Model) View() tea.View {
-	lines := []string{fmt.Sprintf("syn | %s | unread: %t", m.feedTitle(m.filter.FeedID), m.filter.UnreadOnly)}
+	lines := []string{m.styles.Focus.Render(fmt.Sprintf("syn | %s | unread: %t", m.feedTitle(m.filter.FeedID), m.filter.UnreadOnly))}
 	switch {
 	case m.input:
 		lines = append(lines, "Feed URL: "+app.SafeText(m.url), "Enter: add | Esc: cancel")
@@ -414,7 +442,7 @@ func (m *Model) View() tea.View {
 		lines = append(lines, rows[start:end]...)
 		lines = append(lines, "Esc: return | arrows/PageUp/PageDown: scroll")
 	case m.picker:
-		lines = append(lines, "Feed picker")
+		lines = append(lines, m.styles.Focus.Render("Feed picker"))
 		lines = append(lines, m.feedRows()...)
 		lines = append(lines, "Enter: filter | Esc: cancel | a/d/r: manage")
 	case m.wide():
@@ -424,7 +452,7 @@ func (m *Model) View() tea.View {
 		if m.focusFeeds {
 			focus = "Feeds"
 		}
-		lines = append(lines, "Focus: "+focus)
+		lines = append(lines, m.styles.Focus.Render("Focus: "+focus))
 		for i := 0; i < max(len(left), len(right)); i++ {
 			l, r := "", ""
 			if i < len(left) {
@@ -443,9 +471,9 @@ func (m *Model) View() tea.View {
 	if m.loading {
 		lines = append(lines, "Loading...")
 	} else if m.err != nil {
-		lines = append(lines, "Error: "+app.SafeText(m.err.Error()))
+		lines = append(lines, m.styles.Error.Render("Error: "+app.SafeText(m.err.Error())))
 	} else if m.status != "" {
-		lines = append(lines, m.status)
+		lines = append(lines, app.SafeText(m.status))
 	}
 	for i := range lines {
 		lines[i] = fit(lines[i], m.width)

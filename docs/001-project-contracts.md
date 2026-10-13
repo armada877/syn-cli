@@ -11,7 +11,9 @@ Inject command output streams to support tests without process changes.
 
 Pin gofeed v1.5.0 and modernc.org/sqlite v1.39.1.
 Use charm.land/bubbletea/v2 v2.0.10 for the implemented terminal reader.
-Use github.com/charmbracelet/x/ansi v0.11.7 for text width, clipping, and wrapping.
+Use charm.land/lipgloss/v2 v2.0.6 for semantic terminal styles.
+Use github.com/charmbracelet/x/ansi v0.11.8 for text width, clipping, and wrapping.
+Use github.com/fsnotify/fsnotify v1.10.1 for live theme file watching.
 Use golang.org/x/net v0.58.0 directly for HTML conversion and through gofeed for feed parsing.
 These versions provide the required major versions and APIs.
 gofeed v1.5.0 includes parser fixes and uses current golang.org/x/net.

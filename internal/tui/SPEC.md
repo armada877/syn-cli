@@ -45,3 +45,37 @@ Resize does not load data or start network work.
 Reader text wraps again at the new width.
 Scrolling stays within valid bounds.
 Displayed source text contains no terminal control sequences.
+
+Theme state and styles belong to each model.
+NewWithTheme receives the rendered file path and the NO_COLOR choice.
+New resolves ~/.local/state/omarchy/current/theme/syn.toml for normal use.
+A nonempty NO_COLOR disables generated styles.
+Normal text inherits terminal colors.
+The default accent is ANSI bright blue. Errors use ANSI red.
+Read articles use faint text unless a muted overlay supplies a color.
+Selected rows use bold accent text and take priority over read styles.
+Unread markers use the accent. Active focus indicators use bold accent text.
+Emphasis prefers bright_foreground over foreground.
+The application never paints a full-screen background.
+
+The loader accepts quoted three-digit and six-digit RGB hex colors.
+It accepts single quotes, double quotes, and trailing comments.
+It ignores unknown keys, invalid values, and unresolved placeholders.
+Each absent or invalid key keeps its own default.
+Missing, removed, and unreadable files restore ANSI defaults.
+The loader reads no other theme file.
+It recognizes mode, accent, selection, muted, foreground, error, bright_foreground, background, blue, and bright_blue.
+Accent must differ from emphasis by at least 64 sRGB units when emphasis exists.
+With a background, accent contrast must reach five or match the reference blue contrast.
+The reference uses bright_blue, then blue, then ANSI bright blue.
+A selection background requires accent contrast of at least 4.5.
+
+Watching runs in commands and stops when the context ends.
+The watcher observes the theme directory and its parents.
+When directories are absent, it observes existing ancestors.
+Changes settle for 250 milliseconds before loading the file.
+Update receives a typed palette message and rebuilds styles.
+Theme updates preserve filters, selection, focus, picker state, reader state, and scroll.
+Theme updates do not access storage or feeds.
+Source text is sanitized before styling.
+ANSI-aware clipping preserves generated styles and terminal width limits.

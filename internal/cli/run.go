@@ -7,6 +7,7 @@ import (
 	"github.com/armada877/syn-cli/internal/app"
 	"github.com/armada877/syn-cli/internal/domain"
 	"github.com/armada877/syn-cli/internal/feed"
+	"github.com/armada877/syn-cli/internal/setup"
 	"github.com/armada877/syn-cli/internal/store"
 	"github.com/armada877/syn-cli/internal/tui"
 	"io"
@@ -29,13 +30,15 @@ Usage: syn [--db PATH] COMMAND
   syn article show ID
   syn article read ID
   syn article unread ID
+  syn setup omarchy
   syn --help
 `
 
 type Dependencies struct {
-	Open    func(string) (domain.Repository, error)
-	Fetcher domain.Fetcher
-	TUI     func(context.Context, *app.App, io.Writer) error
+	SetupPath string
+	Open      func(string) (domain.Repository, error)
+	Fetcher   domain.Fetcher
+	TUI       func(context.Context, *app.App, io.Writer) error
 }
 
 func DefaultDatabase() (string, error) {
@@ -50,7 +53,7 @@ func DefaultDatabase() (string, error) {
 	return filepath.Join(base, "syn", "articles.db"), nil
 }
 func Run(args []string, stdout, stderr io.Writer) int {
-	return RunWith(args, stdout, stderr, Dependencies{func(path string) (domain.Repository, error) { return store.Open(path) }, feed.New(nil), tui.Run})
+	return RunWith(args, stdout, stderr, Dependencies{Open: func(path string) (domain.Repository, error) { return store.Open(path) }, Fetcher: feed.New(nil), TUI: tui.Run})
 }
 func RunWith(args []string, stdout, stderr io.Writer, deps Dependencies) int {
 	flags := flag.NewFlagSet("syn", flag.ContinueOnError)
@@ -79,6 +82,23 @@ func RunWith(args []string, stdout, stderr io.Writer, deps Dependencies) int {
 	command, err := parse(flags.Args())
 	if err != nil {
 		return invalid(err)
+	}
+	if command.name == "setup omarchy" {
+		target := deps.SetupPath
+		if target == "" {
+			home, e := os.UserHomeDir()
+			if e != nil {
+				return failed(e)
+			}
+			target = setup.OmarchyPath(home)
+		}
+		if e := setup.InstallOmarchy(target); e != nil {
+			return failed(e)
+		}
+		if _, e := fmt.Fprintf(stdout, "Installed %s\nOmarchy renders this template on the next theme change.\n", app.SafeText(target)); e != nil {
+			return failed(e)
+		}
+		return 0
 	}
 	if *path == "" {
 		*path, err = DefaultDatabase()
@@ -116,6 +136,9 @@ func parse(args []string) (command, error) {
 	}
 	if len(args) == 1 && args[0] == "tui" {
 		return c, nil
+	}
+	if len(args) == 2 && args[0] == "setup" && args[1] == "omarchy" {
+		return command{name: "setup omarchy"}, nil
 	}
 	if args[0] == "refresh" && len(args) <= 2 {
 		c.name = "refresh"

@@ -138,3 +138,28 @@ func TestDatabasePathAndColumns(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestOmarchySetupWithoutStorage(t *testing.T) {
+	d := Dependencies{SetupPath: filepath.Join(t.TempDir(), "themed", "syn.toml.tpl"), Open: func(string) (domain.Repository, error) { t.Fatal("Opened database"); return nil, nil }}
+	for range 2 {
+		code, out, message := run(t, d, "setup", "omarchy")
+		if code != 0 || !strings.Contains(out, d.SetupPath) || !strings.Contains(out, "next theme change") || message != "" {
+			t.Fatal(code, out, message)
+		}
+	}
+	for _, args := range [][]string{{"setup"}, {"setup", "other"}, {"setup", "omarchy", "extra"}} {
+		code, _, _ := run(t, d, args...)
+		if code != 2 {
+			t.Fatal(args, code)
+		}
+	}
+	code := RunWith([]string{"setup", "omarchy"}, brokenWriter{}, io.Discard, d)
+	if code != 1 {
+		t.Fatal(code)
+	}
+	d.SetupPath = filepath.Join(d.SetupPath, "bad")
+	code, _, message := run(t, d, "setup", "omarchy")
+	if code != 1 || message == "" {
+		t.Fatal(code, message)
+	}
+}
