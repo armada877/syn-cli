@@ -2,8 +2,8 @@ package cli_test
 
 import (
 	"bytes"
+	"github.com/armada877/syn-cli/internal/cli"
 	"strings"
-	"syn-cli/internal/cli"
 	"testing"
 )
 

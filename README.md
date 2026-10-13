@@ -12,7 +12,7 @@ mise exec -- go mod download all
 ```
 
 mise.toml selects Go 1.27.2 for this project.
-The local module path is syn-cli.
+The module path is github.com/armada877/syn-cli.
 Dependency installation needs a network connection.
 
 ## Build and test

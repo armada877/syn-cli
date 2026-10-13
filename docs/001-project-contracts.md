@@ -2,7 +2,7 @@
 
 ## Decision
 
-Use the local module path syn-cli and the executable name syn.
+Use the module path github.com/armada877/syn-cli and the executable name syn.
 Select Go 1.27.2 through mise.toml for consistent builds.
 Keep shared types independent of external libraries.
 Define fetcher and repository interfaces in internal/domain.

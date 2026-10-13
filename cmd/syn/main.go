@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/armada877/syn-cli/internal/cli"
 	"os"
-	"syn-cli/internal/cli"
 )
 
 func main() {

@@ -3,7 +3,7 @@ package domain_test
 import (
 	"errors"
 	"fmt"
-	"syn-cli/internal/domain"
+	"github.com/armada877/syn-cli/internal/domain"
 	"testing"
 )
 

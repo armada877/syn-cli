@@ -1,4 +1,4 @@
-module syn-cli
+module github.com/armada877/syn-cli
 
 go 1.27.2
 
