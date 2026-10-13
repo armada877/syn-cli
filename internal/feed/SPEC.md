@@ -1,13 +1,26 @@
 # Feed spec
 
-This package implements domain.Fetcher.
-It depends on internal/domain, net/http, and github.com/mmcdole/gofeed.
-Fetch takes context.Context first and respects cancellation.
-Use domain.NormalizeFeedURL before a request.
-Use Feed.ETag and Feed.LastModified as HTTP validators.
-Return NotModified for an unchanged feed.
-Return parsed articles with stable keys within each feed.
-Convert publication timestamps to UTC.
-Leave missing publication times empty for the repository to fill.
-Keep external parser types inside this package.
-Feed requests are not implemented yet.
+This package implements domain.Fetcher with gofeed.
+New accepts an HTTP client. A nil client selects a default client.
+Fetch validates the URL with domain.NormalizeFeedURL.
+Fetch sends a GET request with the supplied context.
+Each request has a 15-second timeout, including requests through an injected client.
+An earlier context deadline or client timeout also applies.
+Fetch does not change the injected client.
+
+Feed.ETag sets If-None-Match. Feed.LastModified sets If-Modified-Since.
+HTTP 304 returns NotModified without parsing the body.
+Missing validators in HTTP 304 retain the supplied values.
+Other responses must have a status from 200 through 299.
+The response body must not exceed 5 MiB.
+Errors identify the operation and URL. Errors do not include response bodies.
+Wrapped errors support errors.Is.
+
+RSS and Atom articles retain source titles, links, and content.
+Content takes priority over description.
+Publication dates use UTC. Missing publication dates remain zero.
+Article keys use GUID first, then link, then a SHA-256 digest.
+The digest uses title, publication date, and selected content.
+Duplicate keys retain the first article in source order.
+Successful results include the feed title and response validators.
+This package does not change stored data.
