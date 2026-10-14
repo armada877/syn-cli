@@ -30,3 +30,9 @@ NormalizeFeedURL requires an HTTP or HTTPS scheme and a host.
 It changes the scheme and host to lowercase and removes fragments.
 It preserves paths and query strings.
 The CLI, store, and fetcher use this helper.
+
+Article and ParsedArticle also store Author and Subtitle strings.
+These fields do not change repository methods or article keys.
+
+Feed.MetadataPending tracks a required metadata refresh.
+It does not depend on empty article fields.

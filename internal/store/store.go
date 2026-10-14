@@ -64,16 +64,23 @@ func (s *Store) initialize() error {
 	if err = tx.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return err
 	}
-	if version > 1 {
+	if version > 2 {
 		return fmt.Errorf("unsupported schema version: %d", version)
 	}
 	if version == 0 {
 		statements := []string{
-			`CREATE TABLE feeds (id INTEGER PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT NOT NULL DEFAULT '', etag TEXT NOT NULL DEFAULT '', last_modified TEXT NOT NULL DEFAULT '', last_fetched_at TEXT NOT NULL DEFAULT '')`,
-			`CREATE TABLE articles (id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE, key TEXT NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, content TEXT NOT NULL, published_at TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0 CHECK (read IN (0, 1)), UNIQUE(feed_id, key))`,
-			`PRAGMA user_version = 1`,
+			`CREATE TABLE feeds (id INTEGER PRIMARY KEY, url TEXT NOT NULL UNIQUE, title TEXT NOT NULL DEFAULT '', etag TEXT NOT NULL DEFAULT '', last_modified TEXT NOT NULL DEFAULT '', last_fetched_at TEXT NOT NULL DEFAULT '', metadata_pending INTEGER NOT NULL DEFAULT 0 CHECK (metadata_pending IN (0, 1)))`,
+			`CREATE TABLE articles (id INTEGER PRIMARY KEY, feed_id INTEGER NOT NULL REFERENCES feeds(id) ON DELETE CASCADE, key TEXT NOT NULL, title TEXT NOT NULL, url TEXT NOT NULL, content TEXT NOT NULL, author TEXT NOT NULL DEFAULT '', subtitle TEXT NOT NULL DEFAULT '', published_at TEXT NOT NULL, read INTEGER NOT NULL DEFAULT 0 CHECK (read IN (0, 1)), UNIQUE(feed_id, key))`,
+			`PRAGMA user_version = 2`,
 		}
 		for _, statement := range statements {
+			if _, err = tx.Exec(statement); err != nil {
+				return err
+			}
+		}
+	}
+	if version == 1 {
+		for _, statement := range []string{"ALTER TABLE feeds ADD COLUMN metadata_pending INTEGER NOT NULL DEFAULT 0 CHECK (metadata_pending IN (0, 1))", "UPDATE feeds SET metadata_pending = 1", "ALTER TABLE articles ADD COLUMN author TEXT NOT NULL DEFAULT ''", "ALTER TABLE articles ADD COLUMN subtitle TEXT NOT NULL DEFAULT ''", "PRAGMA user_version = 2"} {
 			if _, err = tx.Exec(statement); err != nil {
 				return err
 			}
@@ -97,7 +104,7 @@ type scanner interface{ Scan(...any) error }
 func scanFeed(row scanner) (domain.Feed, error) {
 	var feed domain.Feed
 	var fetched string
-	err := row.Scan(&feed.ID, &feed.URL, &feed.Title, &feed.ETag, &feed.LastModified, &fetched)
+	err := row.Scan(&feed.ID, &feed.URL, &feed.Title, &feed.ETag, &feed.LastModified, &fetched, &feed.MetadataPending)
 	if err != nil {
 		return feed, err
 	}
@@ -114,11 +121,11 @@ func (s *Store) AddFeed(ctx context.Context, raw string) (domain.Feed, error) {
 	if err != nil {
 		return domain.Feed{}, err
 	}
-	return scanFeed(s.db.QueryRowContext(ctx, `SELECT id, url, title, etag, last_modified, last_fetched_at FROM feeds WHERE url = ?`, normalized))
+	return scanFeed(s.db.QueryRowContext(ctx, `SELECT id, url, title, etag, last_modified, last_fetched_at, metadata_pending FROM feeds WHERE url = ?`, normalized))
 }
 
 func (s *Store) ListFeeds(ctx context.Context) ([]domain.Feed, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, url, title, etag, last_modified, last_fetched_at FROM feeds ORDER BY id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, url, title, etag, last_modified, last_fetched_at, metadata_pending FROM feeds ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +168,7 @@ func (s *Store) ApplyFetch(ctx context.Context, feedID int64, result domain.Fetc
 	if result.NotModified {
 		err = requireRow(tx.ExecContext(ctx, `UPDATE feeds SET etag = ?, last_modified = ?, last_fetched_at = ? WHERE id = ?`, result.ETag, result.LastModified, stamp(fetchedAt), feedID))
 	} else {
-		err = requireRow(tx.ExecContext(ctx, `UPDATE feeds SET title = ?, etag = ?, last_modified = ?, last_fetched_at = ? WHERE id = ?`, result.Title, result.ETag, result.LastModified, stamp(fetchedAt), feedID))
+		err = requireRow(tx.ExecContext(ctx, `UPDATE feeds SET title = ?, etag = ?, last_modified = ?, last_fetched_at = ?, metadata_pending = 0 WHERE id = ?`, result.Title, result.ETag, result.LastModified, stamp(fetchedAt), feedID))
 	}
 	if err != nil {
 		return err
@@ -173,7 +180,7 @@ func (s *Store) ApplyFetch(ctx context.Context, feedID int64, result domain.Fetc
 			if missing {
 				published = fetchedAt
 			}
-			_, err = tx.ExecContext(ctx, `INSERT INTO articles(feed_id, key, title, url, content, published_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(feed_id, key) DO UPDATE SET title = excluded.title, url = excluded.url, content = excluded.content, published_at = CASE WHEN ? THEN articles.published_at ELSE excluded.published_at END`, feedID, article.Key, article.Title, article.URL, article.Content, stamp(published), missing)
+			_, err = tx.ExecContext(ctx, `INSERT INTO articles(feed_id, key, title, url, content, author, subtitle, published_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(feed_id, key) DO UPDATE SET title = excluded.title, url = excluded.url, content = excluded.content, author = excluded.author, subtitle = excluded.subtitle, published_at = CASE WHEN ? THEN articles.published_at ELSE excluded.published_at END`, feedID, article.Key, article.Title, article.URL, article.Content, article.Author, article.Subtitle, stamp(published), missing)
 			if err != nil {
 				return err
 			}
@@ -183,7 +190,7 @@ func (s *Store) ApplyFetch(ctx context.Context, feedID int64, result domain.Fetc
 }
 
 func (s *Store) ListArticles(ctx context.Context, filter domain.ArticleFilter) ([]domain.Article, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT id, feed_id, key, title, url, content, published_at, read FROM articles WHERE (? = 0 OR feed_id = ?) AND (? = 0 OR read = 0)`, filter.FeedID, filter.FeedID, filter.UnreadOnly)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, feed_id, key, title, url, content, author, subtitle, published_at, read FROM articles WHERE (? = 0 OR feed_id = ?) AND (? = 0 OR read = 0)`, filter.FeedID, filter.FeedID, filter.UnreadOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +199,7 @@ func (s *Store) ListArticles(ctx context.Context, filter domain.ArticleFilter) (
 	for rows.Next() {
 		var article domain.Article
 		var published string
-		if err = rows.Scan(&article.ID, &article.FeedID, &article.Key, &article.Title, &article.URL, &article.Content, &published, &article.Read); err != nil {
+		if err = rows.Scan(&article.ID, &article.FeedID, &article.Key, &article.Title, &article.URL, &article.Content, &article.Author, &article.Subtitle, &published, &article.Read); err != nil {
 			return nil, err
 		}
 		article.PublishedAt, err = parseStamp(published)

@@ -66,9 +66,9 @@ Refresh reports each feed and preserves successful updates after another feed fa
 | q or Ctrl+C | Quit outside URL input |
 | PageUp or PageDown | Scroll the reader by one page |
 
-At 80 columns or more, feeds and articles appear side by side.
+At 81 columns or more, feeds and articles appear side by side.
 Tab changes focus. a adds a feed. d requests removal. r refreshes the selected feed.
-Below 80 columns, articles appear in one stream. Tab has no effect.
+At 80 columns or less, articles appear in one stream. Tab has no effect.
 f opens the feed picker.
 In the picker, arrows or j/k move selection. Enter applies the feed filter.
 All feeds removes the feed filter. Escape cancels without changing the filter.
@@ -97,7 +97,7 @@ Use a separate database for this check.
 Disconnect the fixture server. Open a stored article in the reader.
 Quit and restart. Check that the article remains read.
 Check navigation, refresh feedback, URL input, and removal confirmation.
-Reduce the terminal width to 79 columns. Check the feed picker and Tab.
+Reduce the terminal width to 80 columns. Check the feed picker and Tab.
 Open an article. Resize through 79, 80, and 81 columns in both directions.
 Check that the article and filters remain selected.
 Cancel removal once. Confirm removal once. Quit with q.
@@ -119,3 +119,24 @@ Missing or invalid keys retain their default styles.
 Unread markers and selected rows use the accent.
 Read articles use faint text or the rendered muted color.
 Set a nonempty NO_COLOR to disable generated styles.
+
+## Newspaper reader
+
+An open article uses a centered body column with a preferred width of 60 cells.
+Full-width rules frame the feed, date, and headline.
+The headline, optional subtitle, and author appear over the body column.
+The body uses justified paragraphs. Short final lines stay left aligned.
+Metadata scrolls with the article. Current themes supply the colors.
+Descriptions that duplicate the body do not appear twice.
+The CLI also shows the subtitle and author without changing read state.
+Opening an existing version 1 database migrates it to version 2 in one transaction.
+The migration preserves articles, subscriptions, IDs, and read state.
+
+Migrated feeds request a full body on their next refresh to fill article metadata.
+Stored validators remain intact. Later refreshes use conditional requests again after a successful full refresh.
+
+Every terminal view fills the exact terminal width and height.
+The key bar stays on the final row.
+Lists use all rows between their header and key bar, with blank padding for short lists.
+The reader centers its feed title and date across the full terminal width.
+Operation messages stay above the key bar.

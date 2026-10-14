@@ -262,7 +262,7 @@ func execute(ctx context.Context, a *app.App, c command, out, errors io.Writer, 
 		var article domain.Article
 		article, err = a.Article(ctx, c.id)
 		if err == nil {
-			_, err = fmt.Fprintln(out, app.ArticleText(article.Title, article.URL, article.Content))
+			_, err = fmt.Fprintln(out, app.ArticleDisplayText(article.Title, article.URL, article.Subtitle, article.Author, article.Content))
 		}
 	case "article read", "article unread":
 		err = a.SetRead(ctx, c.id, c.name == "article read")

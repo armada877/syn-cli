@@ -9,9 +9,9 @@ Only one operation runs at a time.
 Run cancels pending operations when the program exits.
 The CLI closes storage after Run returns.
 
-WideLayoutMinColumns is 80.
-At 80 columns or more, show feed and article panes side by side.
-Below 80 columns, show one article stream.
+WideLayoutMinColumns is 81.
+At 81 columns or more, show feed and article panes side by side.
+At 80 columns or less, show one article stream.
 Each article row shows its date, feed title, title, and read state.
 The repository supplies newest-first article order.
 Show the active feed title and unread filter.
@@ -79,3 +79,45 @@ Theme updates preserve filters, selection, focus, picker state, reader state, an
 Theme updates do not access storage or feeds.
 Source text is sanitized before styling.
 ANSI-aware clipping preserves generated styles and terminal width limits.
+
+The open reader uses a centered body column with a preferred width of 60 cells.
+The width is max(1, min(60, terminal width minus 4)).
+The left margin is half the remaining terminal width, rounded down.
+The newspaper starts with a full-width double rule, uppercase feed title, optional date, and another full-width double rule.
+The date uses the format 2 January 2006.
+The article FeedID selects the feed title, independent of the active filter.
+The uppercase bold headline follows, then a full-width single rule, optional subtitle, and optional byline.
+A blank line separates metadata from body paragraphs.
+The feed title and date wrap and center across the terminal.
+The headline, subtitle, and byline wrap and center over the body column.
+Rules and masthead use accent styles.
+The headline uses emphasis. Subtitle and byline use muted styles.
+The body inherits the terminal foreground.
+The list status header does not appear above the open article.
+The entire column scrolls. The help footer and operation messages stay outside the column.
+The reader viewport uses the terminal height minus the key bar and any operation row, with a zero minimum.
+Page movement uses at least one row. Rendering and scroll limits use the same viewport height.
+Body lines wrap greedily at word gaps. Long words split at grapheme boundaries.
+Glyphs wider than the column are omitted.
+Nonfinal paragraph lines distribute extra spaces evenly, with remaining spaces placed from left to right.
+Final lines and single-word lines stay left aligned.
+One blank line separates paragraphs.
+Source text is safe before layout. Styles follow layout.
+Resize reflows the open article and clamps scroll. Theme changes preserve reader state.
+
+Every view contains exactly the terminal height in rows.
+Each row clips and pads to the exact terminal width, measured in display cells.
+This includes lists, picker, reader, help, URL input, and removal confirmation.
+The key bar always occupies the final row, including terminals with only one row.
+Blank rows fill unused space without repeated entries.
+List operation messages form part of the header.
+At heights below four rows, an operation message shares the main header.
+All remaining rows between the header and key bar belong to the list.
+Both wide panes fill that height, including a divider on blank rows.
+The feed pane uses one third of the terminal width after reserving one cell for the divider.
+The article pane uses the remaining width.
+Each pane clips and pads its own rows before adding the divider.
+Scrolling keeps the selected row visible whenever the frame has a list row.
+Reader operation messages appear above the final key bar, outside the body.
+Reader rules span the entire terminal width.
+Source text remains safe after padding and clipping. Generated styles remain intact.

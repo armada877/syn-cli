@@ -22,3 +22,13 @@ It removes script, style, and head content.
 SafeText removes terminal escape sequences, control characters, and Unicode format characters.
 It retains newlines and tabs for text layout.
 ArticleText combines the safe title, safe URL, and converted content.
+
+ArticleSubtitle converts the description and body with PlainText.
+It omits empty descriptions and descriptions equal to the body after whitespace normalization.
+ArticleByline converts the author to safe plain text and prefixes nonempty text with By.
+ArticleDisplayText prints title and URL, optional subtitle and byline, then body paragraphs.
+
+Refresh copies each feed before making its request.
+For MetadataPending feeds, it clears ETag and LastModified only on that request copy.
+Stored validators and the feed in RefreshResult remain intact.
+Failures and HTTP 304 leave metadata pending for another refresh.

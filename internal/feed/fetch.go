@@ -92,7 +92,7 @@ func (f *Fetcher) Fetch(ctx context.Context, feed domain.Feed) (domain.FetchResu
 }
 
 func normalizeArticle(item *gofeed.Item) domain.ParsedArticle {
-	article := domain.ParsedArticle{Title: item.Title, URL: item.Link, Content: item.Content}
+	article := domain.ParsedArticle{Title: item.Title, URL: item.Link, Content: item.Content, Subtitle: item.Description, Author: articleAuthors(item)}
 	if article.Content == "" {
 		article.Content = item.Description
 	}
@@ -109,4 +109,27 @@ func normalizeArticle(item *gofeed.Item) domain.ParsedArticle {
 		article.Key = hex.EncodeToString(digest[:])
 	}
 	return article
+}
+
+func articleAuthors(item *gofeed.Item) string {
+	authors := item.Authors
+	if len(authors) == 0 && item.Author != nil {
+		authors = []*gofeed.Person{item.Author}
+	}
+	names := []string{}
+	seen := map[string]bool{}
+	for _, author := range authors {
+		if author == nil {
+			continue
+		}
+		name := strings.TrimSpace(author.Name)
+		if name == "" {
+			name = strings.TrimSpace(author.Email)
+		}
+		if name != "" && !seen[name] {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+	return strings.Join(names, ", ")
 }

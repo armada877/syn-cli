@@ -78,3 +78,30 @@ func PlainText(source string) string {
 func ArticleText(title, url, content string) string {
 	return SafeText(title) + "\n" + SafeText(url) + "\n\n" + PlainText(content)
 }
+
+func ArticleSubtitle(subtitle, content string) string {
+	text := PlainText(subtitle)
+	if strings.Join(strings.Fields(text), " ") == strings.Join(strings.Fields(PlainText(content)), " ") {
+		return ""
+	}
+	return text
+}
+
+func ArticleByline(author string) string {
+	author = strings.Join(strings.Fields(PlainText(author)), " ")
+	if author == "" {
+		return ""
+	}
+	return "By " + author
+}
+
+func ArticleDisplayText(title, url, subtitle, author, content string) string {
+	blocks := []string{SafeText(title) + "\n" + SafeText(url)}
+	if text := ArticleSubtitle(subtitle, content); text != "" {
+		blocks = append(blocks, text)
+	}
+	if text := ArticleByline(author); text != "" {
+		blocks = append(blocks, text)
+	}
+	return strings.Join(append(blocks, PlainText(content)), "\n\n")
+}

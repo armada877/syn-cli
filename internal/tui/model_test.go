@@ -8,6 +8,7 @@ import (
 	"github.com/armada877/syn-cli/internal/app"
 	"github.com/armada877/syn-cli/internal/domain"
 	"github.com/charmbracelet/x/ansi"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -86,7 +87,7 @@ func fixture(t *testing.T) (*Model, *fakeRepository, *fakeFetcher) {
 	t.Helper()
 	r := &fakeRepository{feeds: []domain.Feed{{ID: 1, Title: "One"}, {ID: 2, Title: "Two"}}, articles: []domain.Article{{ID: 20, FeedID: 2, Title: "Newest", Content: strings.Repeat("word ", 300)}, {ID: 10, FeedID: 1, Title: "Older", Content: "<p>text</p>"}}}
 	f := &fakeFetcher{}
-	m := NewWithTheme(context.Background(), app.New(r, f), "", false)
+	m := NewWithTheme(context.Background(), app.New(r, f), filepath.Join(t.TempDir(), "syn.toml"), false)
 	finish(m, m.work(nil))
 	return m, r, f
 }
@@ -108,11 +109,11 @@ func TestLayoutsAndResize(t *testing.T) {
 	calls := r.calls
 	for _, width := range []int{79, 80, 81, 80, 79, 81, 79} {
 		resize(m, width)
-		if m.wide() != (width >= 80) || m.filter.FeedID != 1 || !m.filter.UnreadOnly || m.selected != 10 || m.reader == nil || m.reader.ID != 10 {
+		if m.wide() != (width >= 81) || m.filter.FeedID != 1 || !m.filter.UnreadOnly || m.selected != 10 || m.reader == nil || m.reader.ID != 10 {
 			t.Fatalf("width %d: %+v", width, m)
 		}
 		for _, line := range m.readerLines() {
-			if ansi.StringWidth(line) > width-2 {
+			if ansi.StringWidth(line) > width {
 				t.Fatalf("width %d: %q", width, line)
 			}
 		}
@@ -174,7 +175,7 @@ func TestNavigationReadAndFilters(t *testing.T) {
 			if m.selected != 10 {
 				t.Fatal("selection after unread removal", m.selected)
 			}
-			if width < 80 {
+			if width < 81 {
 				before := m.focusFeeds
 				press(m, "tab")
 				if before != m.focusFeeds {
@@ -262,7 +263,7 @@ func TestFeedPicker(t *testing.T) {
 func TestEmptyLoadingErrorsAndRefresh(t *testing.T) {
 	r := &fakeRepository{}
 	f := &fakeFetcher{}
-	m := NewWithTheme(context.Background(), app.New(r, f), "", false)
+	m := NewWithTheme(context.Background(), app.New(r, f), filepath.Join(t.TempDir(), "syn.toml"), false)
 	if !strings.Contains(m.View().Content, "Loading") {
 		t.Fatal("loading")
 	}

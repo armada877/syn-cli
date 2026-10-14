@@ -68,7 +68,12 @@ func (a *App) Refresh(ctx context.Context, id int64) ([]RefreshResult, error) {
 		if err := ctx.Err(); err != nil {
 			return results, err
 		}
-		result, err := a.Fetcher.Fetch(ctx, feed)
+		requestFeed := feed
+		if requestFeed.MetadataPending {
+			requestFeed.ETag = ""
+			requestFeed.LastModified = ""
+		}
+		result, err := a.Fetcher.Fetch(ctx, requestFeed)
 		if err == nil {
 			err = a.Repository.ApplyFetch(ctx, feed.ID, result, a.Now())
 		}

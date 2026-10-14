@@ -35,3 +35,7 @@ Dependencies can supply the template target path for isolated checks.
 Normal setup uses ~/.config/omarchy/themed/syn.toml.tpl.
 Success prints the installed path and explains rendering on the next theme change.
 Setup keeps the normal argument, operation, and output failure exit codes.
+
+article show includes an optional plain subtitle and byline after its title and URL.
+It suppresses a subtitle that duplicates the displayed body.
+It keeps body paragraph breaks and stored read state.

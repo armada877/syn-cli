@@ -12,12 +12,13 @@ var (
 )
 
 type Feed struct {
-	ID            int64
-	URL           string
-	Title         string
-	ETag          string
-	LastModified  string
-	LastFetchedAt time.Time
+	ID              int64
+	URL             string
+	Title           string
+	ETag            string
+	LastModified    string
+	LastFetchedAt   time.Time
+	MetadataPending bool
 }
 
 type Article struct {
@@ -26,6 +27,8 @@ type Article struct {
 	Key         string
 	Title       string
 	URL         string
+	Author      string
+	Subtitle    string
 	Content     string
 	PublishedAt time.Time
 	Read        bool
@@ -35,6 +38,8 @@ type ParsedArticle struct {
 	Key         string
 	Title       string
 	URL         string
+	Author      string
+	Subtitle    string
 	Content     string
 	PublishedAt time.Time
 }

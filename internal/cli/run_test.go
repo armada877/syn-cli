@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 type transport func(*http.Request) (*http.Response, error)
@@ -161,5 +162,32 @@ func TestOmarchySetupWithoutStorage(t *testing.T) {
 	code, _, message := run(t, d, "setup", "omarchy")
 	if code != 1 || message == "" {
 		t.Fatal(code, message)
+	}
+}
+
+func TestShowMetadataPreservesReadState(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "metadata.db")
+	repository, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	f, err := repository.AddFeed(ctx, "https://example.com/feed")
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := domain.FetchResult{Articles: []domain.ParsedArticle{{Key: "one", Title: "Title", URL: "URL", Subtitle: "<p>Summary</p>", Author: "Alice", Content: "<p>Body one</p><p>Body two</p>"}}}
+	if err = repository.ApplyFetch(ctx, f.ID, result, time.Time{}); err != nil {
+		t.Fatal(err)
+	}
+	repository.Close()
+	d := deps(path)
+	code, out, message := run(t, d, "--db", path, "article", "show", "1")
+	if code != 0 || message != "" || out != "Title\nURL\n\nSummary\n\nBy Alice\n\nBody one\n\nBody two\n" {
+		t.Fatal(code, out, message)
+	}
+	code, out, message = run(t, d, "--db", path, "article", "list", "--unread")
+	if code != 0 || message != "" || !strings.Contains(out, "unread") {
+		t.Fatal(code, out, message)
 	}
 }

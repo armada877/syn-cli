@@ -24,3 +24,10 @@ The digest uses title, publication date, and selected content.
 Duplicate keys retain the first article in source order.
 Successful results include the feed title and response validators.
 This package does not change stored data.
+
+Subtitle stores the raw description, even when Content uses that description.
+Author uses Authors when available and falls back to Author.
+Each author uses a trimmed name, or an email when the name is empty.
+Ignore nil authors and empty values.
+Join distinct authors with a comma and space in source order.
+Author and Subtitle do not enter the fallback key digest.

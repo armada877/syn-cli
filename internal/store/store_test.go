@@ -163,7 +163,7 @@ func TestRollbackAndNewerSchema(t *testing.T) {
 	if err != nil || len(articles) != 0 {
 		t.Fatalf("articles: %+v %v", articles, err)
 	}
-	if _, err = s.db.Exec("PRAGMA user_version = 2"); err != nil {
+	if _, err = s.db.Exec("PRAGMA user_version = 3"); err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
@@ -178,7 +178,7 @@ func TestRollbackAndNewerSchema(t *testing.T) {
 	s = &Store{db: db}
 	defer s.Close()
 	var version int
-	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 2 {
+	if err = s.db.QueryRow("PRAGMA user_version").Scan(&version); err != nil || version != 3 {
 		t.Fatalf("version: %d %v", version, err)
 	}
 	feeds, err = s.ListFeeds(ctx)

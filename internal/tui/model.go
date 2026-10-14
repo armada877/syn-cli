@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-const WideLayoutMinColumns = 80
+const WideLayoutMinColumns = 81
 
 type dataMsg struct {
 	feeds    []domain.Feed
@@ -171,6 +171,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 		}
+		m.scroll = min(m.scroll, m.maxScroll())
 		return m, nil
 	case tea.KeyPressMsg:
 		if m.input && msg.Text != "" {
@@ -256,9 +257,9 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 		case "up", "k":
 			m.scroll = max(0, m.scroll-1)
 		case "pgdown":
-			m.scroll = min(m.scroll+max(1, m.height-4), m.maxScroll())
+			m.scroll = min(m.scroll+max(1, m.readerHeight()), m.maxScroll())
 		case "pgup":
-			m.scroll = max(0, m.scroll-max(1, m.height-4))
+			m.scroll = max(0, m.scroll-max(1, m.readerHeight()))
 		case "m":
 			if !m.loading {
 				id, read := m.reader.ID, !m.reader.Read
@@ -352,14 +353,118 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+const NewspaperColumnWidth = 60
+
+func wrapWords(text string, width int) []string {
+	width = max(1, width)
+	lines := []string{}
+	line := ""
+	flush := func() {
+		if line != "" {
+			lines = append(lines, line)
+			line = ""
+		}
+	}
+	for _, word := range strings.Fields(text) {
+		if ansi.StringWidth(word) > width {
+			flush()
+			piece := ""
+			for word != "" {
+				cluster, cells := ansi.FirstGraphemeCluster(word, ansi.GraphemeWidth)
+				word = word[len(cluster):]
+				if cells > width {
+					continue
+				}
+				if ansi.StringWidth(piece)+cells > width {
+					lines = append(lines, piece)
+					piece = ""
+				}
+				piece += cluster
+			}
+			line = piece
+			continue
+		}
+		if line == "" {
+			line = word
+		} else if ansi.StringWidth(line)+1+ansi.StringWidth(word) <= width {
+			line += " " + word
+		} else {
+			flush()
+			line = word
+		}
+	}
+	flush()
+	return lines
+}
+
+func justifyText(text string, width int) []string {
+	lines := []string{}
+	for _, paragraph := range strings.Split(text, "\n\n") {
+		wrapped := wrapWords(paragraph, width)
+		if len(wrapped) == 0 {
+			continue
+		}
+		if len(lines) > 0 {
+			lines = append(lines, "")
+		}
+		for i, line := range wrapped {
+			words := strings.Fields(line)
+			if i < len(wrapped)-1 && len(words) > 1 {
+				extra := width - ansi.StringWidth(line)
+				gaps := len(words) - 1
+				line = words[0]
+				for j, word := range words[1:] {
+					spaces := 1 + extra/gaps
+					if j < extra%gaps {
+						spaces++
+					}
+					line += strings.Repeat(" ", spaces) + word
+				}
+			}
+			lines = append(lines, line)
+		}
+	}
+	return lines
+}
+
 func (m *Model) readerLines() []string {
 	if m.reader == nil {
 		return nil
 	}
-	text := m.styles.Emphasis.Render(app.SafeText(m.reader.Title)) + "\n" + app.SafeText(m.reader.URL) + "\n\n" + app.PlainText(m.reader.Content)
-	return strings.Split(ansi.Hardwrap(ansi.Wrap(text, max(1, m.width-2), ""), max(1, m.width-2), false), "\n")
+	width := max(1, min(NewspaperColumnWidth, m.width-4))
+	indent := strings.Repeat(" ", max(0, (m.width-width)/2))
+	lines := []string{}
+	rule := func(glyph string) { lines = append(lines, m.styles.Unread.Render(strings.Repeat(glyph, m.width))) }
+	centered := func(text string, layoutWidth int, render func(...string) string) {
+		for _, line := range wrapWords(text, layoutWidth) {
+			lines = append(lines, strings.Repeat(" ", max(0, (m.width-layoutWidth)/2+(layoutWidth-ansi.StringWidth(line))/2))+render(line))
+		}
+	}
+	rule("═")
+	centered(strings.ToUpper(m.feedTitle(m.reader.FeedID)), m.width, m.styles.Unread.Render)
+	if !m.reader.PublishedAt.IsZero() {
+		centered(m.reader.PublishedAt.Format("2 January 2006"), m.width, m.styles.Unread.Render)
+	}
+	rule("═")
+	centered(strings.ToUpper(app.SafeText(m.reader.Title)), width, m.styles.Emphasis.Render)
+	rule("─")
+	centered(app.ArticleSubtitle(m.reader.Subtitle, m.reader.Content), width, m.styles.Read.Render)
+	centered(app.ArticleByline(m.reader.Author), width, m.styles.Read.Render)
+	lines = append(lines, "")
+	for _, line := range justifyText(app.PlainText(m.reader.Content), width) {
+		lines = append(lines, indent+line)
+	}
+	return lines
 }
-func (m *Model) maxScroll() int      { return max(0, len(m.readerLines())-max(1, m.height-4)) }
+func (m *Model) readerHeight() int {
+	height := max(0, m.height-1)
+	if m.operationRow() != "" {
+		height = max(0, height-1)
+	}
+	return height
+}
+func (m *Model) maxScroll() int      { return max(0, len(m.readerLines())-m.readerHeight()) }
 func fit(s string, width int) string { return ansi.Truncate(s, max(1, width), "") }
 func (m *Model) feedTitle(id int64) string {
 	if id == 0 {
@@ -370,7 +475,7 @@ func (m *Model) feedTitle(id int64) string {
 			if f.Title != "" {
 				return strings.Join(strings.Fields(app.SafeText(f.Title)), " ")
 			}
-			return app.SafeText(f.URL)
+			return singleLine(f.URL)
 		}
 	}
 	return "Unknown feed"
@@ -392,10 +497,11 @@ func (m *Model) feedRows() []string {
 		}
 		rows = append(rows, row)
 	}
-	return window(rows, m.feedIndex, max(1, m.height-5))
+	return window(rows, m.feedIndex, m.listHeight())
 }
 func window(rows []string, selected, height int) []string {
-	start := max(0, selected-height+1)
+	height = max(0, height)
+	start := min(len(rows), max(0, selected-height+1))
 	end := min(len(rows), start+height)
 	return rows[start:end]
 }
@@ -424,64 +530,109 @@ func (m *Model) articleRows() []string {
 	if len(rows) == 0 {
 		return []string{"No articles"}
 	}
-	return window(rows, m.articleIndex, max(1, m.height-5))
+	return window(rows, m.articleIndex, m.listHeight())
 }
-func (m *Model) View() tea.View {
-	lines := []string{m.styles.Focus.Render(fmt.Sprintf("syn | %s | unread: %t", m.feedTitle(m.filter.FeedID), m.filter.UnreadOnly))}
-	switch {
-	case m.input:
-		lines = append(lines, "Feed URL: "+app.SafeText(m.url), "Enter: add | Esc: cancel")
-	case m.confirm:
-		lines = append(lines, "Remove "+m.feedTitle(m.feedID())+" and its articles?", "y/Enter: remove | n/Esc: cancel")
-	case m.help:
-		lines = append(lines, "j/k or arrows: move | Enter: read | Esc: return", "m: read state | u: unread filter | R: refresh all", "Wide: Tab: focus | a: add | d: remove | r: refresh", "Narrow: f: feed picker | Tab: no action", "Picker: Enter: filter | a: add | d: remove | r: refresh", "Reader: arrows, PageUp, PageDown: scroll", "?: help | q/Ctrl+C: quit")
-	case m.reader != nil:
-		rows := m.readerLines()
-		start := min(m.scroll, len(rows))
-		end := min(len(rows), start+max(1, m.height-4))
-		lines = append(lines, rows[start:end]...)
-		lines = append(lines, "Esc: return | arrows/PageUp/PageDown: scroll")
-	case m.picker:
-		lines = append(lines, m.styles.Focus.Render("Feed picker"))
-		lines = append(lines, m.feedRows()...)
-		lines = append(lines, "Enter: filter | Esc: cancel | a/d/r: manage")
-	case m.wide():
-		left, right := m.feedRows(), m.articleRows()
-		pane := max(20, m.width/3)
+func (m *Model) operationRow() string {
+	if m.loading {
+		return "Loading..."
+	}
+	if m.err != nil {
+		return m.styles.Error.Render("Error: " + singleLine(m.err.Error()))
+	}
+	return singleLine(m.status)
+}
+
+func singleLine(text string) string { return strings.Join(strings.Fields(app.SafeText(text)), " ") }
+
+func (m *Model) headerRows() []string {
+	text := fmt.Sprintf("syn | %s | unread: %t", singleLine(m.feedTitle(m.filter.FeedID)), m.filter.UnreadOnly)
+	if m.picker {
+		text += " | Feed picker"
+	} else if m.wide() {
 		focus := "Articles"
 		if m.focusFeeds {
 			focus = "Feeds"
 		}
-		lines = append(lines, m.styles.Focus.Render("Focus: "+focus))
-		for i := 0; i < max(len(left), len(right)); i++ {
+		text += " | Focus: " + focus
+	}
+	rows := []string{m.styles.Focus.Render(text)}
+	if status := m.operationRow(); status != "" {
+		if m.height >= 4 {
+			rows = append(rows, status)
+		} else {
+			rows[0] += " | " + status
+		}
+	}
+	return rows
+}
+
+func (m *Model) listHeight() int { return max(0, m.height-len(m.headerRows())-1) }
+
+func padRow(text string, width int) string {
+	text = fit(text, width)
+	return text + strings.Repeat(" ", max(0, width-ansi.StringWidth(text)))
+}
+
+func (m *Model) frame(rows []string, bar string) tea.View {
+	height := max(1, m.height)
+	rows = rows[:min(len(rows), height-1)]
+	for len(rows) < height-1 {
+		rows = append(rows, "")
+	}
+	rows = append(rows, bar)
+	for i := range rows {
+		rows[i] = padRow(rows[i], m.width)
+	}
+	view := tea.NewView(strings.Join(rows, "\n"))
+	view.AltScreen = true
+	return view
+}
+
+func (m *Model) View() tea.View {
+	rows := m.headerRows()
+	bar := ""
+	switch {
+	case m.input:
+		rows = append(rows, "Feed URL: "+singleLine(m.url))
+		bar = "Enter: add | Esc: cancel"
+	case m.confirm:
+		rows = append(rows, "Remove "+singleLine(m.feedTitle(m.feedID()))+" and its articles?")
+		bar = "y/Enter: remove | n/Esc: cancel"
+	case m.help:
+		rows = append(rows, "j/k or arrows: move | Enter: read | Esc: return", "m: read state | u: unread filter | R: refresh all", "Wide: Tab: focus | a: add | d: remove | r: refresh", "Narrow: f: feed picker | Tab: no action", "Picker: Enter: filter | a: add | d: remove | r: refresh", "Reader: arrows, PageUp, PageDown: scroll")
+		bar = "Esc/?: return | q/Ctrl+C: quit"
+	case m.reader != nil:
+		content := m.readerLines()
+		start := min(m.scroll, len(content))
+		rows = append([]string{}, content[start:min(len(content), start+m.readerHeight())]...)
+		for len(rows) < m.readerHeight() {
+			rows = append(rows, "")
+		}
+		if status := m.operationRow(); status != "" && m.height > 1 {
+			rows = append(rows, status)
+		}
+		bar = "Esc: return | arrows/PageUp/PageDown: scroll"
+	case m.picker:
+		rows = append(rows, m.feedRows()...)
+		bar = "Enter: filter | Esc: cancel | a/d/r: manage"
+	case m.wide():
+		left, right := m.feedRows(), m.articleRows()
+		leftWidth := (m.width - 1) / 3
+		rightWidth := m.width - leftWidth - 1
+		for i := 0; i < m.listHeight(); i++ {
 			l, r := "", ""
 			if i < len(left) {
-				l = fit(left[i], pane-2)
+				l = left[i]
 			}
 			if i < len(right) {
 				r = right[i]
 			}
-			lines = append(lines, l+strings.Repeat(" ", max(0, pane-ansi.StringWidth(l)))+"| "+r)
+			rows = append(rows, padRow(l, leftWidth)+"|"+padRow(r, rightWidth))
 		}
-		lines = append(lines, "Tab: focus | Enter: read | a/d/r: manage | ?: help")
+		bar = "Tab: focus | Enter: read | a/d/r: manage | ?: help"
 	default:
-		lines = append(lines, m.articleRows()...)
-		lines = append(lines, "f: feeds | Enter: read | u: unread | ?: help")
+		rows = append(rows, m.articleRows()...)
+		bar = "f: feeds | Enter: read | u: unread | ?: help"
 	}
-	if m.loading {
-		lines = append(lines, "Loading...")
-	} else if m.err != nil {
-		lines = append(lines, m.styles.Error.Render("Error: "+app.SafeText(m.err.Error())))
-	} else if m.status != "" {
-		lines = append(lines, app.SafeText(m.status))
-	}
-	for i := range lines {
-		lines[i] = fit(lines[i], m.width)
-	}
-	if len(lines) > m.height {
-		lines = lines[:m.height]
-	}
-	view := tea.NewView(strings.Join(lines, "\n"))
-	view.AltScreen = true
-	return view
+	return m.frame(rows, bar)
 }
