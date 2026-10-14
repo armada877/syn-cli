@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 const WideLayoutMinColumns = 81
@@ -22,40 +23,45 @@ type dataMsg struct {
 	status   string
 }
 type Model struct {
-	app           *app.App
-	ctx           context.Context
-	width, height int
-	feeds         []domain.Feed
-	articles      []domain.Article
-	filter        domain.ArticleFilter
-	selected      int64
-	feedIndex     int
-	articleIndex  int
-	focusFeeds    bool
-	picker        bool
-	input         bool
-	url           string
-	confirm       bool
-	help          bool
-	reader        *domain.Article
-	scroll        int
-	loading       bool
-	theme         Theme
-	styles        Styles
-	themeFile     string
-	noColor       bool
-	status        string
-	err           error
+	app            *app.App
+	ctx            context.Context
+	width, height  int
+	feeds          []domain.Feed
+	articles       []domain.Article
+	filter         domain.ArticleFilter
+	selected       int64
+	feedIndex      int
+	articleIndex   int
+	picker         bool
+	input          bool
+	url            string
+	confirm        bool
+	help           bool
+	reader         *domain.Article
+	scroll         int
+	loading        bool
+	theme          Theme
+	styles         Styles
+	themeFile      string
+	noColor        bool
+	status         string
+	err            error
+	now            func() time.Time
+	stateFile      string
+	preferredWidth int
+	dragging       bool
+	saving         bool
+	pendingWidth   int
 }
 
 func New(ctx context.Context, a *app.App) *Model {
 	home, _ := os.UserHomeDir()
-	return NewWithTheme(ctx, a, themePath(home), os.Getenv("NO_COLOR") != "")
+	return NewWithOptions(ctx, a, Options{ThemePath: themePath(home), StatePath: statePath(os.Getenv("XDG_STATE_HOME"), home), NoColor: os.Getenv("NO_COLOR") != "", Now: time.Now})
 }
 func NewWithTheme(ctx context.Context, a *app.App, path string, noColor bool) *Model {
-	theme := loadTheme(path, noColor)
-	return &Model{app: a, ctx: ctx, width: 80, height: 24, loading: true, theme: theme, styles: makeStyles(theme), themeFile: path, noColor: noColor}
+	return NewWithOptions(ctx, a, Options{ThemePath: path, NoColor: noColor, Now: time.Now})
 }
+
 func Run(ctx context.Context, a *app.App, out io.Writer) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -151,7 +157,31 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.theme = msg.theme
 		m.styles = makeStyles(msg.theme)
 		return m, watchTheme(m.ctx, m.themeFile, m.noColor)
+	case widthSavedMsg:
+		m.saving = false
+		m.err = msg.err
+		if msg.err == nil {
+			m.status = "Index width saved"
+		}
+		return m, m.startWidthSave()
+	case tea.MouseClickMsg:
+		if m.mainWide() && msg.Button == tea.MouseLeft && msg.X == m.indexWidth() && msg.Y >= len(m.headerRows()) && msg.Y < m.height-1 {
+			m.dragging = true
+		}
+		return m, nil
+	case tea.MouseMotionMsg:
+		if m.dragging && m.mainWide() && msg.Button == tea.MouseLeft {
+			m.resizeIndex(msg.X)
+		}
+		return m, nil
+	case tea.MouseReleaseMsg:
+		if m.dragging && msg.Button == tea.MouseLeft {
+			m.dragging = false
+			return m, m.queueWidthSave()
+		}
+		return m, nil
 	case tea.WindowSizeMsg:
+		m.dragging = false
 		m.width = max(1, msg.Width)
 		m.height = max(1, msg.Height)
 		m.scroll = min(m.scroll, m.maxScroll())
@@ -172,7 +202,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		m.scroll = min(m.scroll, m.maxScroll())
-		return m, nil
+		return m, m.startWidthSave()
 	case tea.KeyPressMsg:
 		if m.input && msg.Text != "" {
 			m.url += app.SafeText(msg.Text)
@@ -196,7 +226,7 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 			m.input = false
 			m.url = ""
 		case "enter":
-			if !m.loading {
+			if !m.busy() {
 				url := m.url
 				m.input = false
 				m.url = ""
@@ -226,6 +256,7 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if key == "?" {
+		m.dragging = false
 		m.help = true
 		return m, nil
 	}
@@ -233,22 +264,55 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 		if key == "esc" || key == "n" {
 			m.confirm = false
 		}
-		if (key == "y" || key == "enter") && !m.loading {
+		if (key == "y" || key == "enter") && !m.busy() {
 			id := m.feedID()
 			m.confirm = false
 			return m, m.work(func() (string, error) { return "Feed removed", m.app.RemoveFeed(m.ctx, id) })
 		}
 		return m, nil
 	}
-	if m.reader != nil {
+	if key == "f" && !m.picker && (m.reader == nil || m.wide()) {
+		m.dragging = false
+		m.picker = true
+		m.feedIndex = 0
+		for i, f := range m.feeds {
+			if f.ID == m.filter.FeedID {
+				m.feedIndex = i + 1
+			}
+		}
+		return m, nil
+	}
+	if m.picker && key == "esc" {
+		m.picker = false
+		return m, nil
+	}
+	if (key == "<" || key == ">") && m.mainWide() {
+		delta := IndexResizeStep
+		if key == "<" {
+			delta = -delta
+		}
+		before := m.indexWidth()
+		m.resizeIndex(before + delta)
+		if before != m.indexWidth() {
+			return m, m.queueWidthSave()
+		}
+		return m, nil
+	}
+	if m.reader != nil && !m.picker {
 		switch key {
 		case "u":
 			m.filter.UnreadOnly = !m.filter.UnreadOnly
 			m.reconcile()
 		case "R":
-			if !m.loading {
+			if !m.busy() {
 				return m, m.refresh(0)
 			}
+		case "tab":
+			if !m.wide() {
+				return m, nil
+			}
+			m.reader = nil
+			m.scroll = 0
 		case "esc":
 			m.reader = nil
 			m.scroll = 0
@@ -261,59 +325,37 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 		case "pgup":
 			m.scroll = max(0, m.scroll-max(1, m.readerHeight()))
 		case "m":
-			if !m.loading {
+			if !m.busy() {
 				id, read := m.reader.ID, !m.reader.Read
 				return m, m.work(func() (string, error) { return "Read state saved", m.app.SetRead(m.ctx, id, read) })
 			}
 		}
 		return m, nil
 	}
-	if key == "f" && !m.wide() {
-		m.picker = true
-		for i, f := range m.feeds {
-			if f.ID == m.filter.FeedID {
-				m.feedIndex = i + 1
-			}
-		}
-		if m.filter.FeedID == 0 {
-			m.feedIndex = 0
-		}
-		return m, nil
-	}
-	if key == "esc" && m.picker {
-		m.picker = false
-		return m, nil
-	}
-	feedFocus := m.picker || (m.wide() && m.focusFeeds)
 	switch key {
-	case "tab":
-		if m.wide() {
-			m.focusFeeds = !m.focusFeeds
-		}
 	case "down", "j", "up", "k":
 		delta := 1
 		if key == "up" || key == "k" {
 			delta = -1
 		}
-		if feedFocus {
+		if m.picker {
 			m.feedIndex = min(max(0, m.feedIndex+delta), len(m.feeds))
-			if !m.picker {
-				m.chooseFeed()
-			}
 		} else {
 			items := m.visible()
 			m.articleIndex = min(max(0, m.articleIndex+delta), max(0, len(items)-1))
 			m.selected = 0
+			m.scroll = 0
 			m.reconcile()
 		}
 	case "enter":
-		if feedFocus {
+		if m.picker {
 			m.chooseFeed()
 			m.picker = false
-			m.focusFeeds = false
+			m.reader = nil
+			m.scroll = 0
 		} else {
 			items := m.visible()
-			if len(items) > 0 && !m.loading {
+			if len(items) > 0 && !m.busy() {
 				article := items[m.articleIndex]
 				m.reader = &article
 				m.scroll = 0
@@ -325,29 +367,25 @@ func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 		m.reconcile()
 	case "m":
 		items := m.visible()
-		if len(items) > 0 && !m.loading {
+		if len(items) > 0 && !m.busy() {
 			article := items[m.articleIndex]
 			return m, m.work(func() (string, error) { return "Read state saved", m.app.SetRead(m.ctx, article.ID, !article.Read) })
 		}
 	case "a":
-		if (m.wide() || m.picker) && !m.loading {
+		if m.picker && !m.busy() {
 			m.input = true
 			m.url = ""
 		}
 	case "d":
-		if (m.wide() || m.picker) && m.feedID() != 0 && !m.loading {
+		if m.picker && m.feedID() != 0 && !m.busy() {
 			m.confirm = true
 		}
 	case "r":
-		if !m.loading && (m.wide() || m.picker) {
-			id := m.filter.FeedID
-			if feedFocus {
-				id = m.feedID()
-			}
-			return m, m.refresh(id)
+		if !m.busy() && m.picker {
+			return m, m.refresh(m.feedID())
 		}
 	case "R":
-		if !m.loading {
+		if !m.busy() {
 			return m, m.refresh(0)
 		}
 	}
@@ -458,13 +496,21 @@ func (m *Model) readerLines() []string {
 	return lines
 }
 func (m *Model) readerHeight() int {
+	if m.wide() {
+		return max(0, m.height-len(m.mastheadRows())-1)
+	}
 	height := max(0, m.height-1)
 	if m.operationRow() != "" {
 		height = max(0, height-1)
 	}
 	return height
 }
-func (m *Model) maxScroll() int      { return max(0, len(m.readerLines())-m.readerHeight()) }
+func (m *Model) maxScroll() int {
+	if m.wide() {
+		return max(0, len(m.previewLines())-m.readerHeight())
+	}
+	return max(0, len(m.readerLines())-m.readerHeight())
+}
 func fit(s string, width int) string { return ansi.Truncate(s, max(1, width), "") }
 func (m *Model) feedTitle(id int64) string {
 	if id == 0 {
@@ -545,15 +591,12 @@ func (m *Model) operationRow() string {
 func singleLine(text string) string { return strings.Join(strings.Fields(app.SafeText(text)), " ") }
 
 func (m *Model) headerRows() []string {
+	if m.mainWide() {
+		return m.mastheadRows()
+	}
 	text := fmt.Sprintf("syn | %s | unread: %t", singleLine(m.feedTitle(m.filter.FeedID)), m.filter.UnreadOnly)
 	if m.picker {
 		text += " | Feed picker"
-	} else if m.wide() {
-		focus := "Articles"
-		if m.focusFeeds {
-			focus = "Feeds"
-		}
-		text += " | Focus: " + focus
 	}
 	rows := []string{m.styles.Focus.Render(text)}
 	if status := m.operationRow(); status != "" {
@@ -585,6 +628,9 @@ func (m *Model) frame(rows []string, bar string) tea.View {
 	}
 	view := tea.NewView(strings.Join(rows, "\n"))
 	view.AltScreen = true
+	if m.mainWide() {
+		view.MouseMode = tea.MouseModeCellMotion
+	}
 	return view
 }
 
@@ -599,9 +645,9 @@ func (m *Model) View() tea.View {
 		rows = append(rows, "Remove "+singleLine(m.feedTitle(m.feedID()))+" and its articles?")
 		bar = "y/Enter: remove | n/Esc: cancel"
 	case m.help:
-		rows = append(rows, "j/k or arrows: move | Enter: read | Esc: return", "m: read state | u: unread filter | R: refresh all", "Wide: Tab: focus | a: add | d: remove | r: refresh", "Narrow: f: feed picker | Tab: no action", "Picker: Enter: filter | a: add | d: remove | r: refresh", "Reader: arrows, PageUp, PageDown: scroll")
+		rows = append(rows, "j/k or arrows: move | Enter: read | Esc: return", "m: read state | u: unread filter | R: refresh all", "Wide: Tab: return to index | </>: resize index", "Main layouts and wide preview: f: feed picker", "Narrow reader: f and Tab: no action", "Picker: Enter: filter | a: add | d: remove | r: refresh", "Reader: arrows, PageUp, PageDown: scroll")
 		bar = "Esc/?: return | q/Ctrl+C: quit"
-	case m.reader != nil:
+	case m.reader != nil && !m.wide() && !m.picker:
 		content := m.readerLines()
 		start := min(m.scroll, len(content))
 		rows = append([]string{}, content[start:min(len(content), start+m.readerHeight())]...)
@@ -616,8 +662,10 @@ func (m *Model) View() tea.View {
 		rows = append(rows, m.feedRows()...)
 		bar = "Enter: filter | Esc: cancel | a/d/r: manage"
 	case m.wide():
-		left, right := m.feedRows(), m.articleRows()
-		leftWidth := (m.width - 1) / 3
+		left, right := m.indexRows(), m.previewLines()
+		start := min(m.scroll, len(right))
+		right = right[start:]
+		leftWidth := m.indexWidth()
 		rightWidth := m.width - leftWidth - 1
 		for i := 0; i < m.listHeight(); i++ {
 			l, r := "", ""
@@ -627,9 +675,13 @@ func (m *Model) View() tea.View {
 			if i < len(right) {
 				r = right[i]
 			}
-			rows = append(rows, padRow(l, leftWidth)+"|"+padRow(r, rightWidth))
+			rows = append(rows, padRow(l, leftWidth)+m.styles.Unread.Render("│")+padRow(r, rightWidth))
 		}
-		bar = "Tab: focus | Enter: read | a/d/r: manage | ?: help"
+		bar = "f: feeds | Enter: read | </>: width | ?: help"
+		if m.reader != nil {
+			bar = "Tab/Esc: index | arrows/PageUp/PageDown: scroll | f: feeds"
+		}
+
 	default:
 		rows = append(rows, m.articleRows()...)
 		bar = "f: feeds | Enter: read | u: unread | ?: help"

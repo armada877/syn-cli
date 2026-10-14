@@ -66,13 +66,18 @@ Refresh reports each feed and preserves successful updates after another feed fa
 | q or Ctrl+C | Quit outside URL input |
 | PageUp or PageDown | Scroll the reader by one page |
 
-At 81 columns or more, feeds and articles appear side by side.
-Tab changes focus. a adds a feed. d requests removal. r refreshes the selected feed.
+At 81 columns or more, a headline index and article preview appear side by side.
+Moving selection updates the preview without changing read state.
+Enter marks the article read and focuses its preview. Tab or Escape returns to the index.
+< and > change index width. Drag the divider with the left mouse button.
+The reader saves the preferred width in $XDG_STATE_HOME/syn/front-page.json.
+When XDG_STATE_HOME is empty, it uses ~/.local/state/syn/front-page.json.
 At 80 columns or less, articles appear in one stream. Tab has no effect.
-f opens the feed picker.
+f opens the feed picker from both main layouts and the focused wide preview.
+f has no effect inside the narrow full-screen reader.
 In the picker, arrows or j/k move selection. Enter applies the feed filter.
 All feeds removes the feed filter. Escape cancels without changing the filter.
-The picker also accepts a, d, and r for feed management.
+In the picker, a adds a feed. d requests removal. r refreshes the selected feed.
 URL input accepts typing and paste. Enter saves it. Escape cancels it.
 y or Enter confirms removal. n or Escape cancels removal.
 Ctrl+C also quits from URL input.
@@ -122,7 +127,7 @@ Set a nonempty NO_COLOR to disable generated styles.
 
 ## Newspaper reader
 
-An open article uses a centered body column with a preferred width of 60 cells.
+The preview and open reader use a centered body column with a preferred width of 60 cells.
 Full-width rules frame the feed, date, and headline.
 The headline, optional subtitle, and author appear over the body column.
 The body uses justified paragraphs. Short final lines stay left aligned.

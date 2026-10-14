@@ -41,7 +41,7 @@ func TestEveryViewFillsFrame(t *testing.T) {
 						m.articles[0].Title = "Title\x1b[31m\tSafe"
 						bar := "f: feeds | Enter: read | u: unread | ?: help"
 						if m.wide() {
-							bar = "Tab: focus | Enter: read | a/d/r: manage | ?: help"
+							bar = "f: feeds | Enter: read | </>: width | ?: help"
 						}
 						switch mode {
 						case "picker":
@@ -51,6 +51,9 @@ func TestEveryViewFillsFrame(t *testing.T) {
 							article := m.articles[0]
 							m.reader = &article
 							bar = "Esc: return | arrows/PageUp/PageDown: scroll"
+							if m.wide() {
+								bar = "Tab/Esc: index | arrows/PageUp/PageDown: scroll | f: feeds"
+							}
 						case "help":
 							m.help = true
 							bar = "Esc/?: return | q/Ctrl+C: quit"
@@ -112,14 +115,14 @@ func TestListUsesAvailableRows(t *testing.T) {
 					if len(m.feedRows()) != available || len(m.articleRows()) != available {
 						t.Fatal("List does not use available rows")
 					}
-					body := rows[len(m.headerRows()) : len(rows)-1]
+					body := rows[min(len(m.headerRows()), len(rows)-1) : len(rows)-1]
 					text := ansi.Strip(strings.Join(body, "\n"))
-					if !strings.Contains(text, "40") || !strings.Contains(text, "> ") {
+					if available > 0 && (!strings.Contains(text, "40") || !strings.Contains(text, "> ")) {
 						t.Fatal("Selection is not visible", text)
 					}
 					if !picker && m.wide() {
 						for _, row := range body {
-							if ansi.Cut(ansi.Strip(row), (width-1)/3, (width-1)/3+1) != "|" {
+							if ansi.Cut(ansi.Strip(row), m.indexWidth(), m.indexWidth()+1) != "│" {
 								t.Fatal("Missing divider", row)
 							}
 						}
@@ -134,20 +137,14 @@ func TestShortListsPadWithoutRepeatedEntries(t *testing.T) {
 	for _, width := range []int{80, 81, 120} {
 		m, _, _ := fixture(t)
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 12})
-		rows := frameRows(t, m)
-		body := rows[len(m.headerRows()) : len(rows)-1]
-		text := ansi.Strip(strings.Join(body, "\n"))
+		frameRows(t, m)
+		rows := m.articleRows()
+		if m.wide() {
+			rows = m.indexRows()
+		}
+		text := ansi.Strip(strings.Join(rows, "\n"))
 		if strings.Count(text, "Newest") != 1 || strings.Count(text, "Older") != 1 {
 			t.Fatal(text)
-		}
-		for _, row := range body[3:] {
-			want := ""
-			if m.wide() {
-				want = "|"
-			}
-			if strings.TrimSpace(ansi.Strip(row)) != want {
-				t.Fatal("Padding contains list entries", row)
-			}
 		}
 	}
 }
@@ -159,13 +156,13 @@ func TestBoundaryControlsAndResize(t *testing.T) {
 	for _, width := range []int{80, 81, 80, 120, 80} {
 		resize(m, width)
 		m.picker = false
-		before := m.focusFeeds
+		before := m.selected
 		press(m, "tab")
-		if m.wide() != (width >= 81) || (m.focusFeeds != before) != (width >= 81) {
-			t.Fatal(width, m.focusFeeds)
+		if m.wide() != (width >= 81) || m.selected != before || m.reader != nil {
+			t.Fatal(width, m.selected)
 		}
 		rows := frameRows(t, m)
-		if width <= 80 && strings.Contains(ansi.Strip(rows[len(m.headerRows())]), "All feeds") {
+		if width <= 80 && strings.Contains(ansi.Strip(rows[min(len(m.headerRows()), len(rows)-1)]), "All feeds") {
 			t.Fatal("Narrow stream has a feed pane")
 		}
 		if m.filter.FeedID != 1 || m.selected != 10 {
@@ -209,7 +206,7 @@ func TestFramePreservesStyles(t *testing.T) {
 	for _, width := range []int{40, 80, 81, 120} {
 		m.Update(tea.WindowSizeMsg{Width: width, Height: 10})
 		rows := frameRows(t, m)
-		if !strings.Contains(rows[0], "\x1b[") || !strings.Contains(rows[len(m.headerRows())], "\x1b[") {
+		if !strings.Contains(rows[0], "\x1b[") || !strings.Contains(rows[min(len(m.headerRows()), len(rows)-1)], "\x1b[") {
 			t.Fatal("Frame lost generated styles")
 		}
 		if strings.Contains(m.View().Content, "attack") {

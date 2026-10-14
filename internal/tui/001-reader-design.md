@@ -10,7 +10,7 @@ This lets filter changes use stored data without extra storage requests.
 Use stable IDs to preserve selection when refresh changes article order.
 Keep a copy of the open article so an unread filter cannot close the reader.
 
-Use a feed picker at 80 columns or less to keep article rows readable.
+Use a feed picker in both layouts to keep the main page focused on articles.
 Keep picker selection separate from the active feed filter until Enter applies it.
 Use typed command results to return storage and network data to Update.
 Disable operation keys while a command runs to keep writes sequential.

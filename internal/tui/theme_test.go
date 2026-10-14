@@ -154,7 +154,6 @@ func TestLiveThemeSmoke(t *testing.T) {
 	reader := m.articles[0]
 	m.reader = &reader
 	m.scroll = 4
-	m.focusFeeds = true
 	m.picker = true
 	m.filter.UnreadOnly = true
 	before := *m
@@ -170,7 +169,7 @@ func TestLiveThemeSmoke(t *testing.T) {
 	if m.theme.Accent != lipgloss.Color("#abc") || cmd == nil {
 		t.Fatal(m.theme)
 	}
-	if m.filter != before.filter || m.selected != before.selected || m.focusFeeds != before.focusFeeds || m.picker != before.picker || m.reader != before.reader || m.scroll != before.scroll {
+	if m.filter != before.filter || m.selected != before.selected || m.picker != before.picker || m.reader != before.reader || m.scroll != before.scroll {
 		t.Fatal("Theme changed reader state")
 	}
 	if r.calls != calls || r.readCalls != 0 || f.calls != 0 {

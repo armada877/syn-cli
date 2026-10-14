@@ -87,7 +87,8 @@ func fixture(t *testing.T) (*Model, *fakeRepository, *fakeFetcher) {
 	t.Helper()
 	r := &fakeRepository{feeds: []domain.Feed{{ID: 1, Title: "One"}, {ID: 2, Title: "Two"}}, articles: []domain.Article{{ID: 20, FeedID: 2, Title: "Newest", Content: strings.Repeat("word ", 300)}, {ID: 10, FeedID: 1, Title: "Older", Content: "<p>text</p>"}}}
 	f := &fakeFetcher{}
-	m := NewWithTheme(context.Background(), app.New(r, f), filepath.Join(t.TempDir(), "syn.toml"), false)
+	m := NewWithOptions(context.Background(), app.New(r, f), Options{ThemePath: filepath.Join(t.TempDir(), "syn.toml"), StatePath: filepath.Join(t.TempDir(), "front-page.json"), Now: func() time.Time { return time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC) }})
+	m.app.Now = m.now
 	finish(m, m.work(nil))
 	return m, r, f
 }
@@ -175,23 +176,12 @@ func TestNavigationReadAndFilters(t *testing.T) {
 			if m.selected != 10 {
 				t.Fatal("selection after unread removal", m.selected)
 			}
-			if width < 81 {
-				before := m.focusFeeds
-				press(m, "tab")
-				if before != m.focusFeeds {
-					t.Fatal("narrow Tab")
-				}
-			} else {
-				press(m, "tab")
-				press(m, "j")
-				if m.filter.FeedID != 1 {
-					t.Fatal("wide feed navigation")
-				}
-				press(m, "tab")
-				if m.focusFeeds {
-					t.Fatal("wide Tab")
-				}
+			before := m.selected
+			press(m, "tab")
+			if m.selected != before || m.reader != nil {
+				t.Fatal("index Tab changed focus")
 			}
+
 		})
 	}
 }
@@ -263,7 +253,7 @@ func TestFeedPicker(t *testing.T) {
 func TestEmptyLoadingErrorsAndRefresh(t *testing.T) {
 	r := &fakeRepository{}
 	f := &fakeFetcher{}
-	m := NewWithTheme(context.Background(), app.New(r, f), filepath.Join(t.TempDir(), "syn.toml"), false)
+	m := NewWithOptions(context.Background(), app.New(r, f), Options{ThemePath: filepath.Join(t.TempDir(), "syn.toml"), StatePath: filepath.Join(t.TempDir(), "front-page.json"), Now: func() time.Time { return time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC) }})
 	if !strings.Contains(m.View().Content, "Loading") {
 		t.Fatal("loading")
 	}

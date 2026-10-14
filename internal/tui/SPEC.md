@@ -10,29 +10,32 @@ Run cancels pending operations when the program exits.
 The CLI closes storage after Run returns.
 
 WideLayoutMinColumns is 81.
-At 81 columns or more, show feed and article panes side by side.
+At 81 columns or more, show a headline index and article preview side by side.
 At 80 columns or less, show one article stream.
-Each article row shows its date, feed title, title, and read state.
+Each narrow article row shows its date, feed title, title, and read state.
 The repository supplies newest-first article order.
 Show the active feed title and unread filter.
 Show empty lists, loading state, operation results, and errors.
 Keep article selection valid after data and filter changes.
 
 Arrow keys and j/k move selection.
-Wide Tab changes focus. Narrow Tab has no effect.
-Enter opens an article in a full-screen reader and saves read state.
-Escape closes the reader.
+Wide Tab returns preview focus to the index. Index Tab and narrow Tab have no effect.
+Enter saves read state and focuses the wide preview or opens the narrow reader.
+Escape returns to the index or closes the narrow reader.
 Arrows, j/k, PageUp, and PageDown scroll the reader.
 m toggles read state. u toggles the unread filter.
 R refreshes all feeds. ? opens key help.
 q and Ctrl+C quit outside URL input. Ctrl+C also quits from input.
-In wide mode, a opens URL input and d opens removal confirmation.
-r refreshes the active feed or the highlighted feed when feed focus is active.
+In the picker, a opens URL input and d opens removal confirmation.
+r refreshes the highlighted feed.
 Enter adds the URL. Escape cancels input.
 The input accepts typed and pasted text.
 Removal requires y or Enter. n or Escape cancels removal.
 
-Narrow f opens the feed picker.
+f opens the feed picker from both main layouts and the focused wide preview.
+f has no effect inside the narrow full-screen reader.
+Escape restores the previous reading focus and scroll.
+Enter applies the feed filter and returns to index or stream focus.
 Arrow keys and j/k move feed selection.
 Enter applies the highlighted filter and closes the picker.
 All feeds selects every feed.
@@ -47,7 +50,11 @@ Scrolling stays within valid bounds.
 Displayed source text contains no terminal control sequences.
 
 Theme state and styles belong to each model.
-NewWithTheme receives the rendered file path and the NO_COLOR choice.
+NewWithOptions receives explicit theme and state paths, a clock, and the NO_COLOR choice.
+An empty state path disables persistence.
+NewWithTheme remains compatible and disables persistence.
+Tests inject temporary paths or disable persistence.
+Tests inject a fixed clock for date checks.
 New resolves ~/.local/state/omarchy/current/theme/syn.toml for normal use.
 A nonempty NO_COLOR disables generated styles.
 Normal text inherits terminal colors.
@@ -80,7 +87,7 @@ Theme updates do not access storage or feeds.
 Source text is sanitized before styling.
 ANSI-aware clipping preserves generated styles and terminal width limits.
 
-The open reader uses a centered body column with a preferred width of 60 cells.
+The narrow open reader uses a centered body column with a preferred width of 60 cells.
 The width is max(1, min(60, terminal width minus 4)).
 The left margin is half the remaining terminal width, rounded down.
 The newspaper starts with a full-width double rule, uppercase feed title, optional date, and another full-width double rule.
@@ -114,10 +121,67 @@ List operation messages form part of the header.
 At heights below four rows, an operation message shares the main header.
 All remaining rows between the header and key bar belong to the list.
 Both wide panes fill that height, including a divider on blank rows.
-The feed pane uses one third of the terminal width after reserving one cell for the divider.
-The article pane uses the remaining width.
+The wide index defaults to 30 percent of terminal width.
+The preview uses the remaining width after reserving one divider cell.
 Each pane clips and pads its own rows before adding the divider.
 Scrolling keeps the selected row visible whenever the frame has a list row.
 Reader operation messages appear above the final key bar, outside the body.
 Reader rules span the entire terminal width.
 Source text remains safe after padding and clipping. Generated styles remain intact.
+
+## Wide front page
+
+Start with index focus.
+Selection updates the preview without storage writes.
+Selection changes reset preview scroll.
+Keep a stable article copy after Enter, including when unread filtering removes its index entry.
+m toggles the focused article or selected index article.
+Arrows and j/k select index entries or scroll the focused preview.
+PageUp and PageDown scroll the focused preview.
+
+Use full-width double rules around the active feed title and today's local date.
+Use ALL FEEDS when no feed filter applies.
+Use capitals for the safe feed title and 2 January 2006 for the date.
+Clip the title to reserve date space.
+Show focus, unread filtering, and operation messages below the masthead.
+Compress the masthead at short heights. Always reserve the final key bar.
+
+Each index entry shows selection, read state, up to two headline rows, and publication date.
+Wrap safe headlines at grapheme boundaries and omit extra rows.
+Keep the selected entry visible. Pad unused panel rows without repeated entries.
+Use accent styles for selection and unread markers. Use muted styles for read entries.
+
+The preview shows the uppercase bold headline and a panel-width single rule.
+Show optional subtitle and byline with the existing text helpers.
+Center the justified body in a column of at most 60 cells with safe margins.
+Keep final paragraph lines left aligned and blank rows between paragraphs.
+Do not repeat the masthead in the preview.
+Show No article matches when the filtered index is empty.
+
+Reserve one cell for the vertical divider across every panel row.
+Keep the index at least 20 columns and the preview at least 40 columns.
+Clamp effective index width to [20, terminal width minus 41].
+< and > change index width by one column on the wide main page.
+Enable cell motion mouse events on that page.
+Start dragging on a left click on the divider within panel rows.
+Resize on left-button motion during dragging.
+Stop dragging and save on left release, including release outside the divider.
+Ignore unrelated mouse events and disable resizing in all modal views.
+Cancel dragging on resize or when opening a modal view.
+Reflow the preview and clamp scroll after width changes.
+
+Load index_width from $XDG_STATE_HOME/syn/front-page.json when XDG_STATE_HOME is nonempty.
+Otherwise use ~/.local/state/syn/front-page.json.
+Accept one positive integer field. Use the default width for missing, invalid, or unreadable files.
+Create the state directory only on save. Replace the state file atomically.
+Save absolute preferred width after keyboard changes and completed drags.
+Window resize clamps effective width without changing the preferred width.
+A larger window restores the preferred width.
+Serialize saves and keep only the latest pending width.
+Run saves separately from feed and read operations. Keep navigation available.
+Report save errors in the operation area.
+
+Resize at 80 and 81 preserves filters, selection, preferred width, and focused article.
+Wide preview focus becomes the narrow reader. The narrow reader becomes wide preview focus.
+An unfocused wide preview becomes the stream without storage writes.
+Theme changes preserve all navigation and reading state.
