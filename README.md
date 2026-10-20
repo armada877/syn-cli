@@ -1,6 +1,6 @@
 # syn
 
-syn syndicates your RSS and Atom feeds into a newspaper in your terminal.
+Syndicates your RSS and Atom feeds into a newspaper in your terminal.
 
 It stores RSS and Atom feeds in a local SQLite database,
 and provides CLI commands and a Bubble Tea reader.
