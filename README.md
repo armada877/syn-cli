@@ -201,3 +201,38 @@ Operation messages stay above the key bar.
 ## License
 
 syn uses the [MIT License](LICENSE).
+
+## Article images
+
+The reader displays images under the headline and between body paragraphs.
+It downloads only images that intersect the preview or reader viewport.
+Image work runs separately from navigation.
+The CLI shows safe image placeholders and never downloads images.
+
+The reader queries Kitty graphics support once at startup.
+It uses Unicode placeholder cells when the terminal confirms support.
+Other terminals use true-color half blocks.
+Transparent block pixels use a black background.
+The reader uses measured cell dimensions when available.
+Otherwise it assumes cells are twice as high as they are wide.
+Image height has a limit of 256 text rows.
+
+Set image options in $XDG_CONFIG_HOME/syn/config.toml.
+When XDG_CONFIG_HOME is empty, use ~/.config/syn/config.toml.
+Missing settings use these defaults:
+
+```toml
+images = "auto"
+image_fallback = "blocks"
+```
+
+Set images to "off" to show placeholders without queries or downloads.
+Set image_fallback to "placeholder" to prevent downloads when Kitty support is absent.
+A nonempty NO_COLOR also selects plain placeholders without queries or downloads.
+Invalid settings show a status message and retain defaults.
+The reader never creates or changes your configuration file.
+
+Verified images use $XDG_CACHE_HOME/syn/images, or ~/.cache/syn/images when XDG_CACHE_HOME is empty.
+Stored images remain available without network access.
+The reader accepts PNG, JPEG, GIF first frames, and WebP.
+Each image has a ten-second timeout and a 10 MiB response limit.

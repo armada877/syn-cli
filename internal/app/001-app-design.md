@@ -10,3 +10,7 @@ Keep text conversion in the app package.
 Both interfaces need the same readable article text.
 Parse HTML with golang.org/x/net/html instead of removing tags with string rules.
 Remove terminal control sequences before either interface displays source text.
+
+Parse ordered blocks before choosing the display format.
+This keeps image positions shared between CLI output and reader layouts.
+Store invalid images as blocks so their safe alternative text remains visible.
