@@ -26,5 +26,3 @@ Write decision records next to the code to explain design choices.
 Do not write code comments. Tool directives, such as shebangs and lint directives, are permitted.
 Use Simplified Technical English (ASD-STE100) for documentation and commit messages.
 Use short sentences, common words, and the active voice.
-Read the [code of conduct](CODE_OF_CONDUCT.md) before you contribute.
-Report security issues through the [private reporting process](SECURITY.md).
