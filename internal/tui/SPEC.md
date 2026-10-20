@@ -162,11 +162,12 @@ Reserve one cell for the vertical divider across every panel row.
 Keep the index at least 20 columns and the preview at least 40 columns.
 Clamp effective index width to [20, terminal width minus 41].
 < and > change index width by one column on the wide main page.
-Enable cell motion mouse events on that page.
+Enable cell motion mouse events in the reader, stream, and picker.
 Start dragging on a left click on the divider within panel rows.
 Resize on left-button motion during dragging.
 Stop dragging and save on left release, including release outside the divider.
-Ignore unrelated mouse events and disable resizing in all modal views.
+Ignore mouse events other than vertical wheel and divider events.
+Disable resizing in all modal views.
 Cancel dragging on resize or when opening a modal view.
 Reflow the preview and clamp scroll after width changes.
 
@@ -185,3 +186,15 @@ Resize at 80 and 81 preserves filters, selection, preferred width, and focused a
 Wide preview focus becomes the narrow reader. The narrow reader becomes wide preview focus.
 An unfocused wide preview becomes the stream without storage writes.
 Theme changes preserve all navigation and reading state.
+
+## Mouse wheel
+
+The vertical wheel moves three entries in the article stream or feed picker.
+It scrolls article content by three lines in the narrow reader.
+In the wide layout, the pointer selects the index or preview, independent of keyboard focus.
+The index wheel changes article selection and updates the preview while preserving focus.
+The preview wheel scrolls article content.
+Movement stops at both ends. Wheel navigation preserves read state and performs no storage work.
+The wide layout ignores wheel events over the masthead, divider, footer, and outside the frame.
+Help, URL input, removal confirmation, and divider dragging ignore wheel events.
+The reader, stream, and picker enable mouse events. The wide layout retains cell motion for divider dragging.

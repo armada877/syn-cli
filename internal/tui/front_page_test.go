@@ -45,7 +45,7 @@ func TestWidePreviewFocusAndWrites(t *testing.T) {
 	}
 	savedScroll := m.scroll
 	press(m, "f")
-	if !m.picker || m.View().MouseMode != tea.MouseModeNone {
+	if !m.picker || m.View().MouseMode != tea.MouseModeCellMotion {
 		t.Fatal("focused picker")
 	}
 	press(m, "j")
@@ -171,14 +171,18 @@ func TestDividerMouseAndModalGuards(t *testing.T) {
 		press(m, ">")
 		m.Update(tea.MouseClickMsg{X: before, Y: y, Button: tea.MouseLeft})
 		m.Update(tea.MouseMotionMsg{X: 55, Y: y, Button: tea.MouseLeft})
-		if m.indexWidth() != before || m.dragging || m.View().MouseMode != tea.MouseModeNone {
+		wantMode := tea.MouseModeNone
+		if modal == "picker" {
+			wantMode = tea.MouseModeCellMotion
+		}
+		if m.indexWidth() != before || m.dragging || m.View().MouseMode != wantMode {
 			t.Fatal("modal divider active", modal)
 		}
 	}
 	m.picker, m.help, m.input, m.confirm = false, false, false, false
 	m.Update(tea.MouseClickMsg{X: m.indexWidth(), Y: y, Button: tea.MouseLeft})
 	resize(m, 80)
-	if m.dragging || m.View().MouseMode != tea.MouseModeNone {
+	if m.dragging || m.View().MouseMode != tea.MouseModeCellMotion {
 		t.Fatal("resize retained drag")
 	}
 	resize(m, 100)

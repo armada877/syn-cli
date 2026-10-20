@@ -123,6 +123,18 @@ y or Enter confirms removal. n or Escape cancels removal.
 Ctrl+C also quits from URL input.
 Resize preserves filters, article selection, and the open reader.
 
+## Mouse wheel
+
+The vertical wheel moves three entries in the article stream or feed picker.
+It scrolls article content by three lines in the narrow reader.
+In the wide layout, the pointer selects the index or preview, independent of keyboard focus.
+The index wheel changes article selection and updates the preview while preserving focus.
+The preview wheel scrolls article content.
+Movement stops at both ends. Wheel navigation preserves read state and performs no storage work.
+The wide layout ignores wheel events over the masthead, divider, footer, and outside the frame.
+Help, URL input, removal confirmation, and divider dragging ignore wheel events.
+The reader, stream, and picker enable mouse events. The wide layout retains cell motion for divider dragging.
+
 ## Local smoke procedure
 
 Serve an RSS or Atom fixture on a local port.
