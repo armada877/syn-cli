@@ -198,3 +198,49 @@ Movement stops at both ends. Wheel navigation preserves read state and performs 
 The wide layout ignores wheel events over the masthead, divider, footer, and outside the frame.
 Help, URL input, removal confirmation, and divider dragging ignore wheel events.
 The reader, stream, and picker enable mouse events. The wide layout retains cell motion for divider dragging.
+
+## Article images
+
+Load image settings once through the config package.
+Options accept explicit settings, a service, and terminal capability for tests.
+An absent injected service disables image work.
+Show configuration errors as safe, nonfatal status messages.
+
+Show the first image under the headline in both reading layouts.
+Remove that occurrence from the remaining body.
+Keep later images between their surrounding text blocks.
+Keep article lists free of images and image requests.
+
+Query Kitty support once through tea.Raw and the existing input event stream.
+Use a unique query identifier and a 500 ms timeout.
+Accept only the matching OK response before timeout.
+Ignore unrelated and late responses.
+Request cell measurements through the same stream.
+Use a cell aspect ratio of 0.5 when measurements are absent.
+
+Start requests only for image spans that intersect the reading viewport.
+Track spans by block position instead of displayed text.
+Give each request a token and each article selection a generation.
+Ignore results with an old token or generation.
+Cancel requests when their image leaves the viewport or the selected article changes.
+Remember failed sources for the current article without retaining their pixels.
+Do not retry failures on each redraw.
+Keep at most eight active download or rendering jobs.
+Release decoded pixels after rendering.
+Keep completed rows only for images that intersect the viewport.
+Keep known dimensions separately so scrolling preserves reserved rows.
+Bound retained pixels to 480 columns and 1024 rows for each entry.
+
+Serialize uploads, placement changes, and resource deletion.
+Show placeholder cells only after the upload command completes.
+Remove queued obsolete uploads before replacement.
+Regenerate placements after column or cell measurement changes.
+Keep explicit row and column coordinates when scrolling or clipping.
+Release owned resources on replacement and quit.
+
+Use true-color half blocks when Kitty support is absent.
+Composite block transparency against black.
+Use plain placeholders for NO_COLOR, images=off, or the placeholder fallback.
+The placeholder fallback downloads only when Kitty can display the image.
+NO_COLOR and images=off skip graphics queries and image requests.
+Keep existing text layout for articles without images.

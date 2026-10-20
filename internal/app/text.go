@@ -2,6 +2,7 @@ package app
 
 import (
 	"golang.org/x/net/html"
+	"net/url"
 	"strings"
 	"unicode"
 )
@@ -40,19 +41,76 @@ func SafeText(value string) string {
 	}
 	return out.String()
 }
-func PlainText(source string) string {
+
+type ArticleBlock struct {
+	Text   string
+	Source string
+	Alt    string
+	Image  bool
+}
+
+func (b ArticleBlock) Placeholder() string {
+	if b.Alt == "" {
+		return "[image]"
+	}
+	return "[image: " + b.Alt + "]"
+}
+
+func ImageURL(source, articleURL string) string {
+	u, err := url.Parse(source)
+	if err != nil || strings.TrimSpace(source) == "" {
+		return ""
+	}
+	base, err := url.Parse(articleURL)
+	if err == nil {
+		u = base.ResolveReference(u)
+	}
+	if (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || u.User != nil || u.Opaque != "" {
+		return ""
+	}
+	return u.String()
+}
+
+func ArticleBlocks(source, articleURL string) []ArticleBlock {
 	root, err := html.Parse(strings.NewReader(source))
 	if err != nil {
-		return SafeText(source)
+		return []ArticleBlock{{Text: SafeText(source)}}
 	}
+	var blocks []ArticleBlock
 	var out strings.Builder
+	flush := func() {
+		var lines []string
+		for _, line := range strings.Split(SafeText(out.String()), "\n") {
+			if line = strings.Join(strings.Fields(line), " "); line != "" {
+				lines = append(lines, line)
+			}
+		}
+		if len(lines) > 0 {
+			blocks = append(blocks, ArticleBlock{Text: strings.Join(lines, "\n\n")})
+		}
+		out.Reset()
+	}
 	var walk func(*html.Node)
 	walk = func(n *html.Node) {
 		if n.Type == html.ElementNode && (n.Data == "script" || n.Data == "style" || n.Data == "head") {
 			return
 		}
-		block := n.Type == html.ElementNode && strings.Contains("|p|div|br|li|h1|h2|h3|h4|blockquote|pre|tr|section|article|", "|"+n.Data+"|")
-		if block {
+		if n.Type == html.ElementNode && n.Data == "img" {
+			flush()
+			block := ArticleBlock{Image: true}
+			for _, attr := range n.Attr {
+				switch attr.Key {
+				case "src":
+					block.Source = ImageURL(attr.Val, articleURL)
+				case "alt":
+					block.Alt = strings.Join(strings.Fields(SafeText(attr.Val)), " ")
+				}
+			}
+			blocks = append(blocks, block)
+			return
+		}
+		boundary := n.Type == html.ElementNode && strings.Contains("|p|div|br|li|h1|h2|h3|h4|blockquote|pre|tr|section|article|", "|"+n.Data+"|")
+		if boundary {
 			out.WriteByte('\n')
 		}
 		if n.Type == html.TextNode {
@@ -61,19 +119,25 @@ func PlainText(source string) string {
 		for child := n.FirstChild; child != nil; child = child.NextSibling {
 			walk(child)
 		}
-		if block {
+		if boundary {
 			out.WriteByte('\n')
 		}
 	}
 	walk(root)
-	lines := []string{}
-	for _, line := range strings.Split(SafeText(out.String()), "\n") {
-		line = strings.Join(strings.Fields(line), " ")
-		if line != "" {
-			lines = append(lines, line)
+	flush()
+	return blocks
+}
+
+func PlainText(source string) string {
+	var parts []string
+	for _, block := range ArticleBlocks(source, "") {
+		if block.Image {
+			parts = append(parts, block.Placeholder())
+		} else {
+			parts = append(parts, block.Text)
 		}
 	}
-	return strings.Join(lines, "\n\n")
+	return strings.Join(parts, "\n\n")
 }
 func ArticleText(title, url, content string) string {
 	return SafeText(title) + "\n" + SafeText(url) + "\n\n" + PlainText(content)

@@ -43,3 +43,6 @@ Setup keeps the normal argument, operation, and output failure exit codes.
 article show includes an optional plain subtitle and byline after its title and URL.
 It suppresses a subtitle that duplicates the displayed body.
 It keeps body paragraph breaks and stored read state.
+
+article show prints image placeholders in their original body order.
+It does not download images or query terminal graphics support.

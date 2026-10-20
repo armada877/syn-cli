@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/armada877/syn-cli/internal/app"
+	"github.com/armada877/syn-cli/internal/config"
 	"github.com/armada877/syn-cli/internal/domain"
+	"github.com/armada877/syn-cli/internal/images"
 	"github.com/charmbracelet/x/ansi"
 	"io"
 	"os"
@@ -23,6 +25,7 @@ type dataMsg struct {
 	status   string
 }
 type Model struct {
+	imageState     imageState
 	app            *app.App
 	ctx            context.Context
 	width, height  int
@@ -56,7 +59,7 @@ type Model struct {
 
 func New(ctx context.Context, a *app.App) *Model {
 	home, _ := os.UserHomeDir()
-	return NewWithOptions(ctx, a, Options{ThemePath: themePath(home), StatePath: statePath(os.Getenv("XDG_STATE_HOME"), home), NoColor: os.Getenv("NO_COLOR") != "", Now: time.Now})
+	return NewWithOptions(ctx, a, Options{ConfigPath: config.Path(os.Getenv("XDG_CONFIG_HOME"), home), ImageService: images.New(nil, images.CachePath(os.Getenv("XDG_CACHE_HOME"), home), images.Limits{}), ThemePath: themePath(home), StatePath: statePath(os.Getenv("XDG_STATE_HOME"), home), NoColor: os.Getenv("NO_COLOR") != "", Now: time.Now})
 }
 func NewWithTheme(ctx context.Context, a *app.App, path string, noColor bool) *Model {
 	return NewWithOptions(ctx, a, Options{ThemePath: path, NoColor: noColor, Now: time.Now})
@@ -65,11 +68,13 @@ func NewWithTheme(ctx context.Context, a *app.App, path string, noColor bool) *M
 func Run(ctx context.Context, a *app.App, out io.Writer) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	_, err := tea.NewProgram(New(ctx, a), tea.WithContext(ctx), tea.WithInput(os.Stdin), tea.WithOutput(out)).Run()
+	model := New(ctx, a)
+	defer func() { _, _ = io.WriteString(out, model.releaseImages()) }()
+	_, err := tea.NewProgram(model, tea.WithContext(ctx), tea.WithInput(os.Stdin), tea.WithOutput(out)).Run()
 	return err
 }
 func (m *Model) Init() tea.Cmd {
-	return tea.Batch(m.work(nil), watchTheme(m.ctx, m.themeFile, m.noColor))
+	return tea.Batch(m.work(nil), watchTheme(m.ctx, m.themeFile, m.noColor), m.initImages())
 }
 func (m *Model) work(operation func() (string, error)) tea.Cmd {
 	m.loading = true
@@ -151,7 +156,7 @@ func (m *Model) refresh(id int64) tea.Cmd {
 		return strings.Join(lines, "; "), err
 	})
 }
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *Model) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case themeMsg:
 		m.theme = msg.theme
@@ -512,13 +517,15 @@ func justifyText(text string, width int) []string {
 	return lines
 }
 
-func (m *Model) readerLines() []string {
+func (m *Model) readerLines() []string { lines, _ := m.readerLayout(); return lines }
+func (m *Model) readerLayout() ([]string, []imageSpan) {
 	if m.reader == nil {
-		return nil
+		return nil, nil
 	}
 	width := max(1, min(NewspaperColumnWidth, m.width-4))
 	indent := strings.Repeat(" ", max(0, (m.width-width)/2))
 	lines := []string{}
+	var spans []imageSpan
 	rule := func(glyph string) { lines = append(lines, m.styles.Unread.Render(strings.Repeat(glyph, m.width))) }
 	centered := func(text string, layoutWidth int, render func(...string) string) {
 		for _, line := range wrapWords(text, layoutWidth) {
@@ -533,13 +540,14 @@ func (m *Model) readerLines() []string {
 	rule("═")
 	centered(strings.ToUpper(app.SafeText(m.reader.Title)), width, m.styles.Emphasis.Render)
 	rule("─")
+	lead, leadSpans := m.leadImageLayout(m.reader, width)
+	appendImageLayout(&lines, &spans, lead, leadSpans, indent)
 	centered(app.ArticleSubtitle(m.reader.Subtitle, m.reader.Content), width, m.styles.Read.Render)
 	centered(app.ArticleByline(m.reader.Author), width, m.styles.Read.Render)
 	lines = append(lines, "")
-	for _, line := range justifyText(app.PlainText(m.reader.Content), width) {
-		lines = append(lines, indent+line)
-	}
-	return lines
+	body, bodySpans := m.articleBodyLayout(m.reader, width)
+	appendImageLayout(&lines, &spans, body, bodySpans, indent)
+	return lines, spans
 }
 func (m *Model) readerHeight() int {
 	if m.wide() {
@@ -630,6 +638,9 @@ func (m *Model) operationRow() string {
 	}
 	if m.err != nil {
 		return m.styles.Error.Render("Error: " + singleLine(m.err.Error()))
+	}
+	if m.status == "" {
+		return m.imageState.status
 	}
 	return singleLine(m.status)
 }

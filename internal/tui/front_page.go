@@ -2,6 +2,8 @@ package tui
 
 import (
 	"context"
+	"github.com/armada877/syn-cli/internal/config"
+	"github.com/armada877/syn-cli/internal/images"
 	"strings"
 	"time"
 
@@ -18,10 +20,14 @@ const (
 )
 
 type Options struct {
-	ThemePath string
-	StatePath string
-	NoColor   bool
-	Now       func() time.Time
+	ConfigPath      string
+	ImageConfig     *config.Config
+	ImageService    *images.Service
+	KittyCapability *bool
+	ThemePath       string
+	StatePath       string
+	NoColor         bool
+	Now             func() time.Time
 }
 
 func NewWithOptions(ctx context.Context, a *app.App, options Options) *Model {
@@ -30,7 +36,9 @@ func NewWithOptions(ctx context.Context, a *app.App, options Options) *Model {
 		now = time.Now
 	}
 	theme := loadTheme(options.ThemePath, options.NoColor)
-	return &Model{app: a, ctx: ctx, width: 80, height: 24, loading: true, theme: theme, styles: makeStyles(theme), themeFile: options.ThemePath, noColor: options.NoColor, stateFile: options.StatePath, preferredWidth: loadIndexWidth(options.StatePath), now: now}
+	m := &Model{app: a, ctx: ctx, width: 80, height: 24, loading: true, theme: theme, styles: makeStyles(theme), themeFile: options.ThemePath, noColor: options.NoColor, stateFile: options.StatePath, preferredWidth: loadIndexWidth(options.StatePath), now: now}
+	m.configureImages(options)
+	return m
 }
 
 func (m *Model) mainWide() bool { return m.wide() && !m.picker && !m.help && !m.input && !m.confirm }
@@ -94,15 +102,17 @@ func (m *Model) previewArticle() *domain.Article {
 	article := items[m.articleIndex]
 	return &article
 }
-func (m *Model) previewLines() []string {
+func (m *Model) previewLines() []string { lines, _ := m.previewLayout(); return lines }
+func (m *Model) previewLayout() ([]string, []imageSpan) {
 	article := m.previewArticle()
 	if article == nil {
-		return []string{"No article matches"}
+		return []string{"No article matches"}, nil
 	}
 	panelWidth := max(1, m.width-m.indexWidth()-1)
 	width := max(1, min(NewspaperColumnWidth, panelWidth-4))
 	indent := strings.Repeat(" ", (panelWidth-width)/2)
 	lines := []string{}
+	var spans []imageSpan
 	centered := func(text string, render func(...string) string) {
 		for _, line := range wrapWords(text, width) {
 			lines = append(lines, strings.Repeat(" ", (panelWidth-width)/2+(width-ansi.StringWidth(line))/2)+render(line))
@@ -110,13 +120,14 @@ func (m *Model) previewLines() []string {
 	}
 	centered(strings.ToUpper(app.SafeText(article.Title)), m.styles.Emphasis.Render)
 	lines = append(lines, m.styles.Unread.Render(strings.Repeat("─", panelWidth)))
+	lead, leadSpans := m.leadImageLayout(article, width)
+	appendImageLayout(&lines, &spans, lead, leadSpans, indent)
 	centered(app.ArticleSubtitle(article.Subtitle, article.Content), m.styles.Read.Render)
 	centered(app.ArticleByline(article.Author), m.styles.Read.Render)
 	lines = append(lines, "")
-	for _, line := range justifyText(app.PlainText(article.Content), width) {
-		lines = append(lines, indent+line)
-	}
-	return lines
+	body, bodySpans := m.articleBodyLayout(article, width)
+	appendImageLayout(&lines, &spans, body, bodySpans, indent)
+	return lines, spans
 }
 func (m *Model) indexRows() []string {
 	items := m.visible()

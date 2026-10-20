@@ -32,3 +32,13 @@ Refresh copies each feed before making its request.
 For MetadataPending feeds, it clears ETag and LastModified only on that request copy.
 Stored validators and the feed in RefreshResult remain intact.
 Failures and HTTP 304 leave metadata pending for another refresh.
+
+ArticleBlocks returns ordered text and image blocks from stored HTML.
+Skip script, style, and head elements.
+Keep paragraph boundaries and remove terminal controls.
+Resolve image sources against the article URL.
+Accept only absolute HTTP or HTTPS results without credentials.
+Keep invalid images as placeholders without requests.
+Flatten and sanitize alt text.
+Use [image: alt text], or [image] when alt text is empty.
+PlainText includes each placeholder at its original position.
