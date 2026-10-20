@@ -1,5 +1,7 @@
 # Contributing
 
+Follow the [security policy](SECURITY.md) to report vulnerabilities privately.
+
 Install mise. Run these commands from the repository root.
 
 ```sh
