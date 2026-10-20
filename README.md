@@ -2,9 +2,8 @@
 
 syn syndicates your RSS and Atom feeds into a newspaper in your terminal.
 
-syn stores RSS and Atom feeds in a local SQLite database.
-It provides CLI commands and a Bubble Tea reader.
-Refresh runs only when requested.
+It stores RSS and Atom feeds in a local SQLite database,
+and provides CLI commands and a Bubble Tea reader.
 
 ## Installation
 
