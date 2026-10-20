@@ -164,6 +164,9 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.status = "Index width saved"
 		}
 		return m, m.startWidthSave()
+	case tea.MouseWheelMsg:
+		m.wheel(msg)
+		return m, nil
 	case tea.MouseClickMsg:
 		if m.mainWide() && msg.Button == tea.MouseLeft && msg.X == m.indexWidth() && msg.Y >= len(m.headerRows()) && msg.Y < m.height-1 {
 			m.dragging = true
@@ -216,6 +219,49 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	return m, nil
 }
+func (m *Model) wheel(msg tea.MouseWheelMsg) {
+	if m.help || m.input || m.confirm || m.dragging {
+		return
+	}
+	delta := 3
+	switch msg.Button {
+	case tea.MouseWheelUp:
+		delta = -delta
+	case tea.MouseWheelDown:
+	default:
+		return
+	}
+	if m.picker {
+		m.feedIndex = min(max(0, m.feedIndex+delta), len(m.feeds))
+		return
+	}
+	if m.wide() {
+		if msg.X < 0 || msg.X >= m.width || msg.Y < len(m.headerRows()) || msg.Y >= m.height-1 || msg.X == m.indexWidth() {
+			return
+		}
+		if msg.X > m.indexWidth() {
+			m.scroll = min(max(0, m.scroll+delta), m.maxScroll())
+			return
+		}
+	} else if m.reader != nil {
+		m.scroll = min(max(0, m.scroll+delta), m.maxScroll())
+		return
+	}
+	items := m.visible()
+	next := min(max(0, m.articleIndex+delta), max(0, len(items)-1))
+	if next == m.articleIndex {
+		return
+	}
+	m.articleIndex = next
+	m.selected = 0
+	m.scroll = 0
+	m.reconcile()
+	if m.reader != nil && len(items) > 0 {
+		article := items[m.articleIndex]
+		m.reader = &article
+	}
+}
+
 func (m *Model) key(key string) (tea.Model, tea.Cmd) {
 	if key == "ctrl+c" {
 		return m, tea.Quit
@@ -628,7 +674,7 @@ func (m *Model) frame(rows []string, bar string) tea.View {
 	}
 	view := tea.NewView(strings.Join(rows, "\n"))
 	view.AltScreen = true
-	if m.mainWide() {
+	if !m.help && !m.input && !m.confirm {
 		view.MouseMode = tea.MouseModeCellMotion
 	}
 	return view
