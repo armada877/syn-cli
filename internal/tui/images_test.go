@@ -12,6 +12,7 @@ import (
 	"github.com/armada877/syn-cli/internal/config"
 	"github.com/armada877/syn-cli/internal/domain"
 	"github.com/armada877/syn-cli/internal/images"
+	"github.com/charmbracelet/colorprofile"
 	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi/kitty"
 )
@@ -353,5 +354,101 @@ func TestImageModalCancelsActiveRequest(t *testing.T) {
 				t.Fatal("modal did not release terminal image")
 			}
 		})
+	}
+}
+
+func TestExplicitImageModes(t *testing.T) {
+	for _, mode := range []string{"auto", "kitty", "blocks", "placeholder", "off"} {
+		for _, noColor := range []bool{false, true} {
+			for _, capability := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/color=%v/capability=%v", mode, noColor, capability), func(t *testing.T) {
+					cfg := config.Config{Images: mode, ImageFallback: "placeholder"}
+					m := NewWithOptions(context.Background(), nil, Options{ImageConfig: &cfg, NoColor: noColor, KittyCapability: &capability, ImageService: images.New(nil, t.TempDir(), images.Limits{})})
+					m.reader = &domain.Article{ID: 1, URL: "https://example.com", Content: `<img src="/a">`}
+					wantKitty := !noColor && (mode == "kitty" || mode == "auto" && capability)
+					wantAllowed := !noColor && (wantKitty || mode == "blocks")
+					if m.imageState.pending || m.imageState.kitty != wantKitty || m.imageAllowed() != wantAllowed {
+						t.Fatal(m.imageState, m.imageAllowed())
+					}
+					if !wantAllowed {
+						if m.initImages() != nil || m.syncImages() != nil || len(m.imageState.entries) != 0 {
+							t.Fatal("disabled mode starts image work")
+						}
+						return
+					}
+					m.syncImages()
+					entry := m.imageState.entries["https://example.com/a"]
+					if entry == nil {
+						t.Fatal("missing image request")
+					}
+					_, render := m.Update(imageResult{token: entry.token, generation: m.imageState.generation, source: "https://example.com/a", pixels: image.NewRGBA(image.Rect(0, 0, 2, 2)), width: 2, height: 2})
+					applyImageRender(m, render)
+					if (entry.id != 0) != wantKitty || m.imageState.writing != wantKitty {
+						t.Fatal("incorrect renderer", entry)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestImageOverrideInjection(t *testing.T) {
+	t.Setenv("SYN_IMAGES", "off")
+	t.Setenv("KITTY_WINDOW_ID", "123")
+	t.Setenv("KITTY_PID", "456")
+	cfg := config.Default()
+	service := images.New(nil, t.TempDir(), images.Limits{})
+	for _, override := range []string{"", "kitty", "blocks", "placeholder", "off", "invalid\x1b[31m"} {
+		m := NewWithOptions(context.Background(), nil, Options{ImageConfig: &cfg, ImageOverride: override, ImageService: service})
+		want := override
+		if override == "" || !config.ValidImageMode(override) {
+			want = "auto"
+		}
+		if m.imageState.config.Images != want || m.imageState.pending != (want == "auto") {
+			t.Fatal(m.imageState)
+		}
+		if strings.Contains(m.imageState.status, "\x1b") {
+			t.Fatal("unsafe warning")
+		}
+	}
+	if cfg != config.Default() {
+		t.Fatal("injected configuration changed")
+	}
+}
+
+func TestForcedModesSkipCapabilityQueries(t *testing.T) {
+	for _, mode := range []string{"kitty", "blocks", "placeholder", "off"} {
+		cfg := config.Config{Images: mode, ImageFallback: "blocks"}
+		m := NewWithOptions(context.Background(), nil, Options{ImageConfig: &cfg, ImageService: images.New(nil, t.TempDir(), images.Limits{})})
+		command := m.initImages()
+		if mode == "placeholder" || mode == "off" {
+			if command != nil {
+				t.Fatal("text mode sends terminal output")
+			}
+			continue
+		}
+		batch, ok := command().(tea.BatchMsg)
+		if !ok {
+			t.Fatal("missing graphics setup")
+		}
+		var output string
+		profile := false
+		for _, next := range batch {
+			switch msg := next().(type) {
+			case tea.RawMsg:
+				output += fmt.Sprint(msg.Msg)
+			case tea.ColorProfileMsg:
+				profile = msg.Profile == colorprofile.TrueColor
+			default:
+				t.Fatalf("unexpected setup message: %T", msg)
+			}
+		}
+		if output != "\x1b[16t" || !profile {
+			t.Fatal("incorrect graphics setup", output, profile)
+		}
+		m.Update(uv.KittyGraphicsEvent{Options: kitty.Options{ID: m.imageState.query}, Payload: []byte("OK")})
+		if m.imageState.kitty != (mode == "kitty") || m.imageState.pending {
+			t.Fatal("reply changed forced mode")
+		}
 	}
 }

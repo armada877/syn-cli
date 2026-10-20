@@ -22,6 +22,7 @@ const (
 type Options struct {
 	ConfigPath      string
 	ImageConfig     *config.Config
+	ImageOverride   string
 	ImageService    *images.Service
 	KittyCapability *bool
 	ThemePath       string
