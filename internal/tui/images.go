@@ -91,18 +91,39 @@ func (m *Model) configureImages(options Options) {
 	} else {
 		cfg, status = config.Load(options.ConfigPath)
 	}
+	cfg, warning := config.ApplyImageOverride(cfg, options.ImageOverride)
+	if warning != "" {
+		if status != "" {
+			status += "; "
+		}
+		status += warning
+	}
 	m.imageState = imageState{config: cfg, service: options.ImageService, entries: map[string]*imageEntry{}, failed: map[string]bool{}, dimensions: map[string][2]int{}, query: graphicsID(), cellAspect: 0.5, status: status}
-	if options.KittyCapability != nil {
-		m.imageState.kitty = *options.KittyCapability
-	} else {
-		m.imageState.pending = cfg.Images != "off" && !m.noColor && options.ImageService != nil
+	if m.noColor {
+		return
+	}
+	switch cfg.Images {
+	case "kitty":
+		m.imageState.kitty = true
+	case "auto":
+		if options.KittyCapability != nil {
+			m.imageState.kitty = *options.KittyCapability
+		} else {
+			m.imageState.pending = options.ImageService != nil
+		}
 	}
 }
 
 func (m *Model) initImages() tea.Cmd {
 	if !m.imageState.pending {
 		if m.imageState.kitty && m.imageState.config.Images != "off" && !m.noColor {
+			if m.imageState.config.Images == "kitty" {
+				return tea.Batch(graphicsProfile(), tea.Raw("\x1b[16t"))
+			}
 			return graphicsProfile()
+		}
+		if m.imageState.config.Images == "blocks" && !m.noColor {
+			return tea.Batch(graphicsProfile(), tea.Raw("\x1b[16t"))
 		}
 		return nil
 	}
@@ -209,7 +230,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *Model) imageAllowed() bool {
 	s := &m.imageState
-	return s.service != nil && s.config.Images != "off" && !m.noColor && !s.pending && (s.kitty || s.config.ImageFallback == "blocks")
+	return s.service != nil && !m.noColor && !s.pending && (s.config.Images == "kitty" || s.config.Images == "blocks" || s.config.Images == "auto" && (s.kitty || s.config.ImageFallback == "blocks"))
 }
 
 func (m *Model) displayArticle() *domain.Article {

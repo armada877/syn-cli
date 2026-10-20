@@ -240,7 +240,17 @@ Release owned resources on replacement and quit.
 
 Use true-color half blocks when Kitty support is absent.
 Composite block transparency against black.
-Use plain placeholders for NO_COLOR, images=off, or the placeholder fallback.
+Use plain placeholders for NO_COLOR, images=placeholder, images=off, or the placeholder fallback.
 The placeholder fallback downloads only when Kitty can display the image.
-NO_COLOR and images=off skip graphics queries and image requests.
+NO_COLOR, images=placeholder, and images=off skip graphics queries and image requests.
 Keep existing text layout for articles without images.
+
+Auto mode keeps its existing matching Kitty response and timeout behavior.
+Accept a matching Kitty OK without selecting a mode from terminal identity.
+Apply image_fallback only in auto mode.
+The kitty mode forces Kitty rendering without a capability query.
+The blocks mode forces true-color half blocks without Kitty queries or uploads.
+The kitty and blocks modes request cell measurements and select true-color output.
+Explicit modes ignore injected Kitty capability values.
+NO_COLOR overrides every image mode and skips cell measurement requests.
+Read SYN_IMAGES only in the production constructor and inject its value into model options.

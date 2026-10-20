@@ -59,7 +59,7 @@ type Model struct {
 
 func New(ctx context.Context, a *app.App) *Model {
 	home, _ := os.UserHomeDir()
-	return NewWithOptions(ctx, a, Options{ConfigPath: config.Path(os.Getenv("XDG_CONFIG_HOME"), home), ImageService: images.New(nil, images.CachePath(os.Getenv("XDG_CACHE_HOME"), home), images.Limits{}), ThemePath: themePath(home), StatePath: statePath(os.Getenv("XDG_STATE_HOME"), home), NoColor: os.Getenv("NO_COLOR") != "", Now: time.Now})
+	return NewWithOptions(ctx, a, Options{ImageOverride: os.Getenv("SYN_IMAGES"), ConfigPath: config.Path(os.Getenv("XDG_CONFIG_HOME"), home), ImageService: images.New(nil, images.CachePath(os.Getenv("XDG_CACHE_HOME"), home), images.Limits{}), ThemePath: themePath(home), StatePath: statePath(os.Getenv("XDG_STATE_HOME"), home), NoColor: os.Getenv("NO_COLOR") != "", Now: time.Now})
 }
 func NewWithTheme(ctx context.Context, a *app.App, path string, noColor bool) *Model {
 	return NewWithOptions(ctx, a, Options{ThemePath: path, NoColor: noColor, Now: time.Now})

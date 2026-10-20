@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -38,5 +39,35 @@ func TestLoad(t *testing.T) {
 	}
 	if Path("/xdg", "/home/test") != "/xdg/syn/config.toml" || Path("", "/home/test") != "/home/test/.config/syn/config.toml" {
 		t.Fatal("incorrect paths")
+	}
+}
+
+func TestImageModesAndOverride(t *testing.T) {
+	for _, mode := range []string{"auto", "kitty", "blocks", "placeholder", "off"} {
+		t.Run(mode, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.toml")
+			if err := os.WriteFile(path, []byte("images = '"+mode+"'"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			cfg, warning := Load(path)
+			if cfg.Images != mode || warning != "" {
+				t.Fatal(cfg, warning)
+			}
+			for _, override := range []string{"", "auto", "kitty", "blocks", "placeholder", "off", "bad\x1b[31m", " KITTY", "KITTY"} {
+				got, warning := ApplyImageOverride(cfg, override)
+				want := mode
+				if ValidImageMode(override) {
+					want = override
+				}
+				invalid := override != "" && !ValidImageMode(override)
+				if got.Images != want || got.ImageFallback != cfg.ImageFallback || (warning != "") != invalid || strings.ContainsAny(warning, "\x1b\n\r") {
+					t.Fatal(got, warning)
+				}
+			}
+			data, err := os.ReadFile(path)
+			if err != nil || string(data) != "images = '"+mode+"'" {
+				t.Fatal("configuration changed", err)
+			}
+		})
 	}
 }

@@ -29,3 +29,14 @@ Use the verified disk cache to reload images without another network request.
 Keep true-color output after Kitty confirms support.
 Placeholder foreground colors contain image identifiers.
 Color reduction would change those identifiers and display the wrong image.
+
+Keep auto detection based on the matching Kitty reply.
+Herdr answers that query through its embedded terminal, even when the outer terminal cannot display Kitty graphics.
+Auto mode keeps Kitty support inside Herdr because the viewing terminal can support the protocol.
+Do not use XTVERSION or inherited KITTY variables to select a mode.
+A server can have clients with different terminal support.
+For foot with Herdr, use `images = "blocks"` or `SYN_IMAGES=blocks` to avoid empty image areas.
+Explicit modes let each launcher select rendering without capability queries.
+Request cell measurements for forced graphics modes to preserve image proportions.
+Force true-color output for blocks and Kitty placeholder identifiers.
+Keep NO_COLOR above all mode choices to prevent downloads and terminal queries.

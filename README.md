@@ -209,7 +209,7 @@ It downloads only images that intersect the preview or reader viewport.
 Image work runs separately from navigation.
 The CLI shows safe image placeholders and never downloads images.
 
-The reader queries Kitty graphics support once at startup.
+In auto mode, the reader queries Kitty graphics support once at startup.
 It uses Unicode placeholder cells when the terminal confirms support.
 Other terminals use true-color half blocks.
 Transparent block pixels use a black background.
@@ -226,7 +226,23 @@ images = "auto"
 image_fallback = "blocks"
 ```
 
-Set images to "off" to show placeholders without queries or downloads.
+The images setting accepts "auto", "kitty", "blocks", "placeholder", and "off".
+Set images to "kitty" to force Kitty graphics without a capability query.
+Set images to "blocks" to force true-color half blocks without Kitty queries or uploads.
+Set images to "placeholder" or "off" to show plain placeholders without queries or downloads.
+The kitty and blocks modes still request cell measurements.
+The image_fallback setting applies only to auto mode.
+
+Set SYN_IMAGES to any accepted images value to override the configuration.
+For example, run `SYN_IMAGES=blocks syn` to force blocks.
+An unset or empty SYN_IMAGES keeps the configuration value.
+An invalid SYN_IMAGES keeps that value and shows a safe warning.
+
+Herdr answers Kitty queries through its embedded terminal.
+The outer terminal can lack Kitty support even when Herdr reports success.
+Auto mode trusts that response, which can leave empty image areas in foot with Herdr.
+For foot with Herdr, set `images = "blocks"` or launch with `SYN_IMAGES=blocks`.
+Use `SYN_IMAGES=kitty` when the viewing terminal supports Kitty graphics.
 Set image_fallback to "placeholder" to prevent downloads when Kitty support is absent.
 A nonempty NO_COLOR also selects plain placeholders without queries or downloads.
 Invalid settings show a status message and retain defaults.

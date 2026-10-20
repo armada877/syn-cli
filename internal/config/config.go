@@ -44,7 +44,7 @@ func Load(path string) (Config, string) {
 		return defaults, "Invalid image settings; using defaults"
 	}
 	status := ""
-	if parsed.Images != "auto" && parsed.Images != "off" {
+	if !ValidImageMode(parsed.Images) {
 		parsed.Images = defaults.Images
 		status = "Invalid image settings; using defaults"
 	}
@@ -53,4 +53,23 @@ func Load(path string) (Config, string) {
 		status = "Invalid image settings; using defaults"
 	}
 	return parsed, status
+}
+
+func ValidImageMode(value string) bool {
+	switch value {
+	case "auto", "kitty", "blocks", "placeholder", "off":
+		return true
+	}
+	return false
+}
+
+func ApplyImageOverride(cfg Config, value string) (Config, string) {
+	if value == "" {
+		return cfg, ""
+	}
+	if !ValidImageMode(value) {
+		return cfg, "Invalid SYN_IMAGES; using configured image mode"
+	}
+	cfg.Images = value
+	return cfg, ""
 }
