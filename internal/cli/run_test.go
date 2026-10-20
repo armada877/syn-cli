@@ -38,7 +38,7 @@ func TestHelpAndArguments(t *testing.T) {
 	d := Dependencies{Open: func(string) (domain.Repository, error) { t.Fatal("opened database"); return nil, nil }}
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"--db", "/bad/path", "--help"}} {
 		code, out, err := run(t, d, args...)
-		if code != 0 || !strings.Contains(out, "Usage: syn") || err != "" {
+		if code != 0 || !strings.HasPrefix(out, "syn syndicates your RSS and Atom feeds into a newspaper in your terminal.\n") || !strings.Contains(out, "Usage: syn") || err != "" {
 			t.Fatalf("%v: %d %q %q", args, code, out, err)
 		}
 	}

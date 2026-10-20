@@ -18,7 +18,7 @@ import (
 	"strings"
 )
 
-const help = `syn - RSS reader
+const help = `syn syndicates your RSS and Atom feeds into a newspaper in your terminal.
 
 Usage: syn [--db PATH] COMMAND
   syn, syn tui

@@ -1,8 +1,51 @@
 # syn
 
+syn syndicates your RSS and Atom feeds into a newspaper in your terminal.
+
+The name syn comes from syndication in RSS.
+
 syn stores RSS and Atom feeds in a local SQLite database.
 It provides CLI commands and a Bubble Tea reader.
 Refresh runs only when requested.
+
+## Installation
+
+Install from source with Go 1.27.2 or later:
+
+```sh
+go install github.com/armada877/syn-cli/cmd/syn@latest
+```
+
+Add Go's binary directory to PATH. It is usually $(go env GOPATH)/bin.
+
+When a release is available, download it from the
+[releases page](https://github.com/armada877/syn-cli/releases).
+Choose linux or darwin for your operating system.
+Choose amd64 for Intel or AMD processors, or arm64 for ARM processors.
+Download the matching tar.gz archive and checksums.txt into the same directory.
+Verify the archive before extraction. Replace ARCHIVE with its file name.
+
+```sh
+sha256sum --ignore-missing -c checksums.txt
+```
+
+On macOS, use this command and check the line for your archive:
+
+```sh
+shasum -a 256 -c checksums.txt
+```
+
+Continue only if your archive reports OK.
+Extract the archive and install syn into a directory on PATH:
+
+```sh
+tar -xzf ARCHIVE
+mkdir -p "$HOME/.local/bin"
+install -m 755 syn "$HOME/.local/bin/syn"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
+Add the PATH setting to your shell configuration to keep it after restart.
 
 ## Setup and checks
 
@@ -145,3 +188,7 @@ The key bar stays on the final row.
 Lists use all rows between their header and key bar, with blank padding for short lists.
 The reader centers its feed title and date across the full terminal width.
 Operation messages stay above the key bar.
+
+## License
+
+syn uses the [MIT License](LICENSE).

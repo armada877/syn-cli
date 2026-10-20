@@ -5,6 +5,10 @@ RunWith also receives storage, fetcher, and terminal dependencies.
 Use the standard flag package for options and explicit dispatch for commands.
 No arguments and tui start the terminal reader from stored data.
 -h and --help print usage without opening storage.
+The first help line is exactly:
+
+syn syndicates your RSS and Atom feeds into a newspaper in your terminal.
+
 --db PATH precedes the command and overrides the default database path.
 The default path is $XDG_DATA_HOME/syn/articles.db.
 When XDG_DATA_HOME is empty, use ~/.local/share/syn/articles.db.
