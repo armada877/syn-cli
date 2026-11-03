@@ -12,7 +12,7 @@ require (
 	github.com/mmcdole/gofeed v1.5.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	golang.org/x/image v0.47.0
-	golang.org/x/net v0.61.0
+	golang.org/x/net v0.62.0
 	modernc.org/sqlite v1.61.0
 )
 
